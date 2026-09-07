@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The one key that cannot be expressed as an INFOPLIST_KEY_* build
+	     setting: it is an array of dictionaries. GENERATE_INFOPLIST_FILE stays
+	     on, so Xcode merges every generated key (LSUIElement, the bundle
+	     identifier, the version…) into this file rather than replacing it, and
+	     this stays the only thing in it.
+
+	     `tandem://summary` is what both widget sizes open when they are
+	     clicked; `tandem://summary/mac` and `tandem://summary/iphone` scroll
+	     the window to one device. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>dev.tandem.app.summary</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>tandem</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

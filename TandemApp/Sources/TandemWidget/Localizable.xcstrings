@@ -1,0 +1,186 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "24 hours": {
+      "extractionState": "manual",
+      "comment": "Large widget: title of the day-long chart card.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "24 hours"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "24 часа"
+          }
+        }
+      }
+    },
+    "Collecting history…": {
+      "extractionState": "manual",
+      "comment": "Large widget: shown in place of the chart until the app has a day of readings.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collecting history…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Собираем историю…"
+          }
+        }
+      }
+    },
+    "MacBook and iPhone charge side by side.": {
+      "extractionState": "manual",
+      "comment": "Widget description in the gallery.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacBook and iPhone charge side by side."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заряд MacBook и iPhone рядом."
+          }
+        }
+      }
+    },
+    "Tandem Battery": {
+      "extractionState": "manual",
+      "comment": "Widget name in the gallery.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tandem Battery"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Батарея Tandem"
+          }
+        }
+      }
+    },
+    "Today": {
+      "extractionState": "manual",
+      "comment": "Large widget: the day a charge session started.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Today"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "сегодня"
+          }
+        }
+      }
+    },
+    "Yesterday": {
+      "extractionState": "manual",
+      "comment": "Large widget: the day a charge session started.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yesterday"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "вчера"
+          }
+        }
+      }
+    },
+    "charged": {
+      "extractionState": "manual",
+      "comment": "Widget: fully charged, or plugged in and at/above 80 %, or charging past the 80 % target with no further ETA.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "charged"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "заряжен"
+          }
+        }
+      }
+    },
+    "min": {
+      "extractionState": "manual",
+      "comment": "Widget time unit, as in \"80 % · 14 min\".",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "min"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "мин"
+          }
+        }
+      }
+    },
+    "now": {
+      "extractionState": "manual",
+      "comment": "Large widget: a charge session that is still running.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "now"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "сейчас"
+          }
+        }
+      }
+    },
+    "on hold": {
+      "extractionState": "manual",
+      "comment": "Widget: plugged in, not charging, below 80 % and not full.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "on hold"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ожидание"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

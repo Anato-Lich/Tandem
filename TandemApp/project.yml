@@ -1,0 +1,140 @@
+name: Tandem
+options:
+  bundleIdPrefix: dev.tandem
+  createIntermediateGroups: true
+packages:
+  BatteryCore:
+    path: ../BatteryCore
+targets:
+  Tandem:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Sources/Tandem
+        excludes:
+          - "Info.plist"
+    dependencies:
+      - package: BatteryCore
+        product: BatteryCore
+      - target: TandemWidget
+        embed: true
+        codeSign: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.tandem.app
+        PRODUCT_NAME: Tandem
+        SWIFT_VERSION: "6.0"
+        MACOSX_DEPLOYMENT_TARGET: "15.0"
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""
+        ENABLE_APP_SANDBOX: "NO"
+        ENABLE_HARDENED_RUNTIME: "NO"
+        # Both, deliberately: GENERATE_INFOPLIST_FILE keeps injecting the
+        # INFOPLIST_KEY_* settings below, and Xcode merges them *into* the
+        # named file rather than instead of it. The file exists only to carry
+        # CFBundleURLTypes (the `tandem://summary` scheme the widgets open),
+        # which has no INFOPLIST_KEY_ spelling because it is an array of
+        # dictionaries.
+        GENERATE_INFOPLIST_FILE: "YES"
+        INFOPLIST_FILE: Sources/Tandem/Info.plist
+        INFOPLIST_KEY_LSUIElement: "YES"
+        INFOPLIST_KEY_CFBundleDisplayName: "Tandem"
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        # No /opt/homebrew/lib here any more: tools/bundle-dylibs.sh copies the
+        # libimobiledevice/OpenSSL chain into Contents/Frameworks and rewrites
+        # every install name to @rpath, so the bundle's own Frameworks
+        # directory is the only place dyld needs to look. Adding the Homebrew
+        # path back would mask a bundling failure on this machine and still
+        # fail on any other.
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+        SWIFT_EMIT_LOC_STRINGS: "YES"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    # Makes the .app self-contained: copies the closure of Homebrew dylibs
+    # BatteryCore links (libimobiledevice, libusbmuxd, libimobiledevice-glue,
+    # libplist, libssl.3, libcrypto.3) into Contents/Frameworks, rewrites the
+    # install names to @rpath, ships the LGPL/Apache texts into
+    # Contents/Resources/Licenses and ad-hoc re-signs. See the "Packaging"
+    # section of README.md. It runs before Xcode's own CodeSign step, which
+    # re-signs the app bundle over the top; the nested dylibs keep the
+    # signatures the script gave them.
+    postBuildScripts:
+      - name: Bundle Homebrew dylibs
+        script: '"$SRCROOT/../tools/bundle-dylibs.sh"'
+        # The script's inputs are outside the build graph (Homebrew), so let it
+        # run on every build rather than be skipped as up to date. It is
+        # idempotent and takes well under a second.
+        basedOnDependencyAnalysis: false
+
+  # WidgetKit extension. Deliberately does *not* depend on the BatteryCore
+  # package: BatteryCore links the libimobiledevice/openssl chain out of
+  # /opt/homebrew, and this appex is sandboxed (that is the whole point — see
+  # WidgetBridge.swift), so dyld would be denied those dylibs at launch. It
+  # instead compiles the Foundation-only files of BatteryCore that define
+  # the wire format, so `TandemSnapshot` in the widget is the same source as
+  # `TandemSnapshot` in the app rather than a hand-copied twin.
+  TandemWidget:
+    type: app-extension
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Sources/TandemWidget
+        excludes:
+          - "Info.plist"
+          - "TandemWidget.entitlements"
+      - path: ../BatteryCore/Sources/BatteryCore/Models.swift
+        group: BatteryCore (shared source)
+      - path: ../BatteryCore/Sources/BatteryCore/TandemSnapshot.swift
+        group: BatteryCore (shared source)
+      - path: ../BatteryCore/Sources/BatteryCore/ChargeEstimator.swift
+        group: BatteryCore (shared source)
+      - path: ../BatteryCore/Sources/BatteryCore/Formatting.swift
+        group: BatteryCore (shared source)
+      # The widget-visibility breadcrumb (NOTES.md §14). Foundation-only, and
+      # shared rather than copied so the extension writes exactly the file the
+      # app parses.
+      - path: ../BatteryCore/Sources/BatteryCore/WidgetActivity.swift
+        group: BatteryCore (shared source)
+      # `HistorySummary` / `DeviceHistory` / `SeriesPoint`, for the large
+      # family's 24 h chart. Foundation-only like the rest of this list (all of
+      # `History/` is Foundation plus SQLite3, and the models file itself
+      # imports only Foundation), so the widget decodes the very type
+      # `HistoryStore.writeSummary` encoded rather than a hand-copied mirror.
+      - path: ../BatteryCore/Sources/BatteryCore/History/HistoryModels.swift
+        group: BatteryCore (shared source)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.tandem.app.widget
+        PRODUCT_NAME: TandemWidget
+        SWIFT_VERSION: "6.0"
+        MACOSX_DEPLOYMENT_TARGET: "15.0"
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""
+        CODE_SIGN_ENTITLEMENTS: Sources/TandemWidget/TandemWidget.entitlements
+        ENABLE_HARDENED_RUNTIME: "NO"
+        GENERATE_INFOPLIST_FILE: "NO"
+        INFOPLIST_FILE: Sources/TandemWidget/Info.plist
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SKIP_INSTALL: "YES"
+        SWIFT_EMIT_LOC_STRINGS: "YES"
+        # The widget gallery's sidebar takes its icon from the *extension*
+        # bundle, not from the containing app, so the appex carries its own
+        # copy of `AppIcon.appiconset` (Sources/TandemWidget/Assets.xcassets,
+        # byte-identical to the app's). Without it the sidebar row is the
+        # generic placeholder plug. `Info.plist` names it in CFBundleIconName /
+        # CFBundleIconFile, since GENERATE_INFOPLIST_FILE is off here.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Every Apple widget appex declares one of these (Batteries and Weather
+        # name "WidgetBackground", Calendar and Notes "WidgetBackgroundColor");
+        # Tandem's declared none, so anywhere the host needs a plate of its own
+        # — the gallery preview, the pre-first-render placeholder — it had no
+        # colour to use and fell back to opaque black. The colour set is the
+        # mock-ups' widget grey (docs/design/gen.py `WBG`) with a light
+        # counterpart. Named again in Info.plist as NSWidgetBackgroundColorName,
+        # because GENERATE_INFOPLIST_FILE is off for this target.
+        ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME: WidgetBackground

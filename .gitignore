@@ -1,0 +1,14 @@
+# Swift Package Manager
+.build/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+.swiftpm/
+# Xcode
+DerivedData/
+build/
+*.xcuserstate
+# XcodeGen output (regenerate with `xcodegen generate`)
+TandemApp/Tandem.xcodeproj/
+# macOS
+.DS_Store
+dist/

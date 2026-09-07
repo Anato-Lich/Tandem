@@ -1,0 +1,134 @@
+name: Build
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------- BatteryCore
+  # The part of the repo that is worth gating a PR on: the pure-Swift package,
+  # its parsers, policies and estimators. Every test is fixture- or mock-driven
+  # (BatteryCore/NOTES.md §10), so none of them needs a phone plugged into the
+  # runner.
+  batterycore:
+    name: BatteryCore (swift build + test)
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # libimobiledevice / libusbmuxd / libimobiledevice-glue / libplist come
+      # as one dependency chain; openssl@3 is already on the runner image but
+      # is named explicitly so this still works on a bare machine. pkg-config
+      # is not optional — SwiftPM's systemLibrary targets resolve their include
+      # and link paths through it, and without it the build fails at
+      # `#include <libimobiledevice/...>`.
+      - name: Install dependencies
+        run: brew install libimobiledevice libusbmuxd libimobiledevice-glue libplist openssl@3 pkg-config
+
+      # openssl@3 is keg-only, so Homebrew does not symlink openssl.pc into
+      # <prefix>/lib/pkgconfig. COpenSSL's target declares `pkgConfig: "openssl"`,
+      # so that .pc has to be findable or the package will not configure.
+      - name: Put the keg-only openssl .pc files on the pkg-config path
+        run: |
+          echo "PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig:$(brew --prefix)/lib/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
+
+      - name: Show the resolved dependency versions
+        run: |
+          swift --version
+          pkg-config --modversion libimobiledevice-1.0 openssl
+
+      - name: swift build
+        working-directory: BatteryCore
+        run: swift build
+
+      # `swift test` needs swift-testing, which ships inside Xcode and not with
+      # the CommandLineTools (NOTES.md §10). The runner's selected toolchain is
+      # already Xcode's, but DEVELOPER_DIR is set explicitly so this does not
+      # depend on the image's xcode-select default.
+      - name: swift test
+        working-directory: BatteryCore
+        env:
+          DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+        run: swift test
+
+  # ---------------------------------------------------------------------- app
+  # The .app itself. This needs more than the package does — xcodegen to
+  # produce the .xcodeproj (which is git-ignored), and the Homebrew dylibs
+  # present at build time so the post-build tools/bundle-dylibs.sh can copy the
+  # closure into Contents/Frameworks. No signing identity is needed: the
+  # project pins CODE_SIGN_IDENTITY to "-" (ad hoc) for both targets, which is
+  # also what the released .dmg ships with, so the CI build is the same build a
+  # release is cut from.
+  #
+  # It is a separate job rather than more steps on the one above because it is
+  # the more fragile half: it depends on Homebrew keg layout and on the runner
+  # image's Xcode, neither of which the package build cares about. Nothing here
+  # produces a distributable artefact — tools/make-dmg.sh is run by hand on a
+  # clean tree (see the "Release" section of TandemApp/README.md), because the
+  # DMG's verification step wants to actually launch the app.
+  app:
+    name: Tandem.app (xcodebuild, ad-hoc signed)
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install xcodegen libimobiledevice libusbmuxd libimobiledevice-glue libplist openssl@3 pkg-config
+
+      - name: Put the keg-only openssl .pc files on the pkg-config path
+        run: |
+          echo "PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig:$(brew --prefix)/lib/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
+
+      - name: xcodegen generate
+        working-directory: TandemApp
+        run: xcodegen generate
+
+      - name: xcodebuild -configuration Release
+        env:
+          DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+        run: |
+          xcodebuild \
+            -project TandemApp/Tandem.xcodeproj \
+            -scheme Tandem \
+            -configuration Release \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGN_IDENTITY="-" \
+            build
+
+      # Cheap version of what tools/make-dmg.sh checks: bundle-dylibs.sh
+      # already fails the build if anything still points at /opt, but assert it
+      # here too so a regression shows up as a named failing step rather than a
+      # line in the middle of a build log.
+      - name: The .app must not reference Homebrew
+        run: |
+          set -euo pipefail
+          APP=build/DerivedData/Build/Products/Release/Tandem.app
+          test -d "$APP/Contents/PlugIns/TandemWidget.appex"
+          bad=0
+          for f in "$APP/Contents/MacOS/Tandem" "$APP"/Contents/Frameworks/*.dylib; do
+            if otool -L "$f" | tail -n +2 | awk '{print $1}' | grep -q '^/opt/'; then
+              echo "::error::$f still links a Homebrew library"; otool -L "$f"; bad=1
+            fi
+          done
+          test "$bad" -eq 0
+          codesign --verify --deep --strict --verbose=2 "$APP"
+
+      # No launch check in CI: Tandem is an LSUIElement menu-bar app and the
+      # runner has no logged-in GUI session, so `open` would not tell us
+      # anything. tools/make-dmg.sh does that part locally.
+
+      # Uncomment to pull the built .app off a run for manual testing. Left off
+      # by default because the artefact is ~15 MB per run and is not signed with
+      # anything a downloader could trust anyway.
+      # - name: Upload the .app
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: Tandem.app
+      #     path: build/DerivedData/Build/Products/Release/Tandem.app

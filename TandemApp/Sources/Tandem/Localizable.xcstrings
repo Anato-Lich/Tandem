@@ -1,0 +1,1281 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "%@ cycles": {
+      "comment": "Summary window, tabbed layout: a fractional cycle estimate for today, as in \"0.90 cycles\". The number is a decimal, so this is not a plural.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ cycles"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ цикла"
+          }
+        }
+      }
+    },
+    "%lld cycles": {
+      "comment": "Summary window, tabbed layout: the gauge's cycle count in the battery-health sub-line, as in \"33 cycles\".",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld cycle"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld cycles"
+                }
+              }
+            }
+          }
+        },
+        "ru": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld цикл"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld цикла"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld циклов"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld цикла"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "24 hours": {
+      "comment": "Summary window: section label over the 24 h chart.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "24 hours"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "24 часа"
+          }
+        }
+      }
+    },
+    "80 % at": {
+      "comment": "Summary window: followed by the clock time the session passed 80 %, as in \"80 % at 15:53\".",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "80 % at"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "80 % в"
+          }
+        }
+      }
+    },
+    "80 % in": {
+      "comment": "Summary window: lead-in followed by how long reaching 80 % took or will take, as in \"80 % in 2 h 08 min\".",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "80 % in"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "до 80 % за"
+          }
+        }
+      }
+    },
+    "80 % ·": {
+      "comment": "Summary window: the status chip's lead-in, followed by the time left to 80 %, as in \"80 % · 14 min\". Split from the duration on purpose — a key with a bare % beside a placeholder is a String(format:) accident.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "80 % ·"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "80 % через"
+          }
+        }
+      }
+    },
+    "Battery": {
+      "comment": "Summary window: section label over health, cycles, temperature and the capacity trend.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аккумулятор"
+          }
+        }
+      }
+    },
+    "Battery health": {
+      "comment": "Summary window, tabbed layout: row label over the pack's health percentage.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery health"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Здоровье батареи"
+          }
+        }
+      }
+    },
+    "Charged": {
+      "comment": "Summary window, tabbed layout: the device is full and on a charger.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charged"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заряжен"
+          }
+        }
+      }
+    },
+    "Charged to 80 %": {
+      "comment": "Notification body when neither the elapsed time nor the power is known.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charged to 80 %"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зарядился до 80 %"
+          }
+        }
+      }
+    },
+    "Charged to 80 %% in %1$@": {
+      "comment": "Notification body when the power is unknown, as in \"Charged to 80 % in 23 min\". %1$@ is how long the charge has been running.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charged to 80 %% in %1$@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зарядился до 80 %% за %1$@"
+          }
+        }
+      }
+    },
+    "Charged to 80 %% in %1$@ · %2$@": {
+      "comment": "Notification body, as in \"Charged to 80 % in 23 min · 36/45 W\". %1$@ is how long the charge has been running, %2$@ is watts in over the adapter's rating. The percent sign is doubled because this goes through String(format:).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charged to 80 %% in %1$@ · %2$@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зарядился до 80 %% за %1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "Charged to 80 %% · %1$@": {
+      "comment": "Notification body when the session's start time is unknown, as in \"Charged to 80 % · 36/45 W\". %1$@ is watts in over the adapter's rating.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charged to 80 %% · %1$@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зарядился до 80 %% · %1$@"
+          }
+        }
+      }
+    },
+    "Charging": {
+      "comment": "Summary window, tabbed layout: followed by the wattage, as in \"Charging 36/45 W\".",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charging"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зарядка"
+          }
+        }
+      }
+    },
+    "Collecting history…": {
+      "comment": "Summary window: shown in place of the 24 h chart while fewer than two points have been recorded.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collecting history…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сбор истории…"
+          }
+        }
+      }
+    },
+    "Cycles": {
+      "comment": "Summary window: row label over the gauge's cycle count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cycles"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Циклы"
+          }
+        }
+      }
+    },
+    "Health": {
+      "comment": "Summary window: row label over the pack's health percentage.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Health"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Здоровье"
+          }
+        }
+      }
+    },
+    "Last charge": {
+      "comment": "Summary window: section label over the last charge session.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last charge"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Последняя зарядка"
+          }
+        }
+      }
+    },
+    "Launch at login": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Launch at login"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Автозапуск при входе"
+          }
+        }
+      }
+    },
+    "Mac": {
+      "comment": "Summary window: fallback device name when neither the reading nor the store carries one.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac"
+          }
+        }
+      }
+    },
+    "Mac not reachable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac not reachable"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac недоступен"
+          }
+        }
+      }
+    },
+    "MacBook reached 80 %": {
+      "comment": "Notification title: the Mac crossed 80 % while charging.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacBook reached 80 %"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacBook зарядился до 80 %"
+          }
+        }
+      }
+    },
+    "No charge sessions recorded yet": {
+      "comment": "Summary window: shown in place of the last-charge block when the store holds no session for this device.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No charge sessions recorded yet"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сессий зарядки пока нет"
+          }
+        }
+      }
+    },
+    "No charge sessions yet": {
+      "comment": "Summary window: shown in place of the last charge session when nothing has been recorded.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No charge sessions yet"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зарядок пока нет"
+          }
+        }
+      }
+    },
+    "On battery": {
+      "comment": "Summary window, tabbed layout: the device is running off its own pack.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On battery"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "От батареи"
+          }
+        }
+      }
+    },
+    "Quit Tandem": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quit Tandem"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завершить Tandem"
+          }
+        }
+      }
+    },
+    "Resync": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resync"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Переподключить"
+          }
+        }
+      }
+    },
+    "Resyncing…": {
+      "comment": "Popover footer menu: the transient title of the Resync item while it is running — the phone is being looked for again. Kept short; it replaces \"Resync\" in place.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resyncing…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Переподключение…"
+          }
+        }
+      }
+    },
+    "Summary layout": {
+      "comment": "Popover overflow menu: submenu holding the two shapes of the summary window.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Summary layout"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вид сводки"
+          }
+        }
+      }
+    },
+    "Summary…": {
+      "comment": "Popover: the overflow menu item and the device rows' tooltip; opens the summary window.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Summary…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сводка…"
+          }
+        }
+      }
+    },
+    "System": {
+      "comment": "Summary window: row label over what the machine itself is drawing right now.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Система"
+          }
+        }
+      }
+    },
+    "Tabs": {
+      "comment": "Popover overflow menu: the summary window's tabbed layout, one device at a time.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tabs"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вкладки"
+          }
+        }
+      }
+    },
+    "Temperature": {
+      "comment": "Summary window: row label over the pack temperature.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Temperature"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Температура"
+          }
+        }
+      }
+    },
+    "Today": {
+      "comment": "Summary window: the section label over today's statistics, and the day word in \"Today 13:13 → 17:13\".",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Today"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сегодня"
+          }
+        }
+      }
+    },
+    "Two columns": {
+      "comment": "Popover overflow menu: the summary window's two-column layout, both devices at once.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Two columns"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Две колонки"
+          }
+        }
+      }
+    },
+    "Yesterday": {
+      "comment": "Summary window: day word in \"Yesterday 22:04 → 07:31\".",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yesterday"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вчера"
+          }
+        }
+      }
+    },
+    "adapter": {
+      "extractionState": "manual",
+      "comment": "Popover row stat caption, under the adapter wattage (or \"—\" when not plugged in).",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "adapter"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "адаптер"
+          }
+        }
+      }
+    },
+    "avg": {
+      "comment": "Summary window: prefix of the session's average wattage, as in \"avg 12.6 W\".",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "avg"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ср."
+          }
+        }
+      }
+    },
+    "avg draw": {
+      "comment": "Summary window: caption under today's average discharge wattage.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "avg draw"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ср. расход"
+          }
+        }
+      }
+    },
+    "capacity": {
+      "comment": "Summary window: caption under the change in full-charge capacity, followed by the span in days.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "capacity"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ёмкость"
+          }
+        }
+      }
+    },
+    "charged": {
+      "comment": "Popover: the 80 % target has been reached, shown in place of a countdown.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "charged"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "заряжен"
+          }
+        }
+      }
+    },
+    "charging": {
+      "extractionState": "manual",
+      "comment": "Popover row stat caption, under the charging wattage.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "charging"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "зарядка"
+          }
+        }
+      }
+    },
+    "cycles": {
+      "comment": "Summary window: caption under the gauge's cycle count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cycles"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "циклы"
+          }
+        }
+      }
+    },
+    "cycles est.": {
+      "comment": "Summary window: caption under today's estimated cycles (percent gained / 100), as distinct from the gauge's own cycle count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cycles est."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "циклов, оц."
+          }
+        }
+      }
+    },
+    "draw": {
+      "extractionState": "manual",
+      "comment": "Popover row stat caption, under the discharge wattage (or \"—\" for the iPhone).",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "draw"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "потребление"
+          }
+        }
+      }
+    },
+    "iPhone": {
+      "comment": "Summary window: fallback device name when neither the reading nor the store carries one.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone"
+          }
+        }
+      }
+    },
+    "iPhone not reachable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone not reachable"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone недоступен"
+          }
+        }
+      }
+    },
+    "iPhone reached 80 %": {
+      "comment": "Notification title: the iPhone crossed 80 % while charging.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone reached 80 %"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone зарядился до 80 %"
+          }
+        }
+      }
+    },
+    "left": {
+      "extractionState": "manual",
+      "comment": "Popover row stat caption, under time-to-empty while discharging.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "left"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "осталось"
+          }
+        }
+      }
+    },
+    "normal": {
+      "comment": "Summary window, tabbed layout: pack temperature under 40 °C.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "normal"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "норма"
+          }
+        }
+      }
+    },
+    "now": {
+      "comment": "Summary window: the open end of a charge session still running, as in \"Today 13:13 → now\".",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "now"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "сейчас"
+          }
+        }
+      }
+    },
+    "on %@ adapter": {
+      "comment": "Summary window, tabbed layout: what the charger is rated for, as in \"on 140 W adapter\".",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "on %@ adapter"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "на адаптере %@"
+          }
+        }
+      }
+    },
+    "on charger": {
+      "comment": "Summary window: caption under the time spent on external power today.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "on charger"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "на зарядке"
+          }
+        }
+      }
+    },
+    "on hold": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ожидание"
+          }
+        }
+      }
+    },
+    "peak": {
+      "comment": "Summary window: prefix of the session's peak wattage, as in \"peak 15.6 W\".",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "peak"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "макс."
+          }
+        }
+      }
+    },
+    "range": {
+      "comment": "Summary window: caption under today's minimum–maximum percent.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "range"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "диапазон"
+          }
+        }
+      }
+    },
+    "status": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "статус"
+          }
+        }
+      }
+    },
+    "tandem.error.cancelled": {
+      "extractionState": "manual",
+      "comment": "MonitorError.cancelled: the read was cancelled (e.g. app quitting mid-poll).",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancelled"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отменено"
+          }
+        }
+      }
+    },
+    "tandem.error.macReadFailed": {
+      "extractionState": "manual",
+      "comment": "MonitorError.macReadFailed: the Mac's own IOKit battery read failed.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery read failed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось прочитать данные батареи"
+          }
+        }
+      }
+    },
+    "tandem.error.malformedResponse": {
+      "extractionState": "manual",
+      "comment": "MonitorError.malformedResponse: the device's reply could not be decoded.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone sent an unreadable reply"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone прислал нечитаемый ответ"
+          }
+        }
+      }
+    },
+    "tandem.error.noAddress": {
+      "extractionState": "manual",
+      "comment": "MonitorError.noAddress: --direct-only with an empty address book; no network address is known for the phone.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone address unknown"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Адрес iPhone неизвестен"
+          }
+        }
+      }
+    },
+    "tandem.error.noDevice": {
+      "extractionState": "manual",
+      "comment": "MonitorError.noDevice: usbmuxd knows of no such device and no address is remembered. Routinely transient over Wi-Fi.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone not found"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone не найден"
+          }
+        }
+      }
+    },
+    "tandem.error.notPaired": {
+      "extractionState": "manual",
+      "comment": "MonitorError.notPaired: no pair record, or Trust This Computer was never granted. The only permanent failure.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone not paired"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone не сопряжён"
+          }
+        }
+      }
+    },
+    "tandem.error.other": {
+      "extractionState": "manual",
+      "comment": "MonitorError.other: anything not otherwise classified; fallback wording.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone error"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ошибка iPhone"
+          }
+        }
+      }
+    },
+    "tandem.error.relayRefused": {
+      "extractionState": "manual",
+      "comment": "MonitorError.relayRefused: lockdown answered but diagnostics_relay refused; the state the partial/degraded tier exists for.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone relay failed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ретрансляция iPhone не удалась"
+          }
+        }
+      }
+    },
+    "tandem.error.timedOut": {
+      "extractionState": "manual",
+      "comment": "MonitorError.timedOut: a step past connect ran out of its budget.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone timed out"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Истекло время ожидания iPhone"
+          }
+        }
+      }
+    },
+    "tandem.error.unreachable": {
+      "extractionState": "manual",
+      "comment": "MonitorError.unreachable: connect refused or timed out; the phone's radio is off.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone unreachable"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone недоступен"
+          }
+        }
+      }
+    },
+    "temperature": {
+      "comment": "Summary window: caption under the battery temperature.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "temperature"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "температура"
+          }
+        }
+      }
+    },
+    "to 80 %": {
+      "extractionState": "manual",
+      "comment": "Popover row stat caption, under the time-to-80%% estimate while charging.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "to 80 %"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "до 80 %"
+          }
+        }
+      }
+    },
+    "warm": {
+      "comment": "Summary window, tabbed layout: pack temperature at or above 40 °C.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "warm"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "тепло"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}
