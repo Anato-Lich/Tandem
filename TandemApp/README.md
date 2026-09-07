@@ -761,7 +761,6 @@ Open issues with this arrangement:
   say) is not guaranteed to keep it across an upgrade.
 - **`dist/` is not in `.gitignore`.** Built images should not be committed;
   either add it, or attach the .dmg to a GitHub release rather than the tree.
-- **CI does not produce the .dmg.** `.github/workflows/build.yml` builds and
   tests BatteryCore and does an ad-hoc `xcodebuild` of the app on `macos-15`,
   but the image is cut by hand on a clean tree — the verification step wants
   to actually launch the app, and a CI runner has no GUI session to launch it
