@@ -68,12 +68,21 @@ func series(_ keyframes: [(hoursAgo: Double, percent: Double, charging: Bool)]) 
 /// `sample` answers, for a moment `hours` into the window: the level, what the
 /// device was doing, what the wall was putting in (nil on battery — there is no
 /// wall) and what the machine itself was drawing.
+///
+/// `silence` is a stretch of the window, in hours from its left edge, that
+/// simply has **no rows** — the Mac's display slept, so the energy policy
+/// stopped polling the phone over Wi-Fi and nobody looked at that battery for
+/// hours. The binner turns it into `.unknown` bins, and the picture is the one
+/// place that can be checked: a row of stubs at the baseline where the chart
+/// used to draw a flat shelf of invented level.
 func bins(
+    silence: Range<Double>? = nil,
     _ sample: (Double) -> (percent: Double, state: HistoryBinState, powerIn: Double?, load: Double?)
 ) -> [HistoryBin] {
     var rows: [HistoryReading] = []
     for step in 0...(24 * 12) {
         let hours = Double(step) / 12
+        if let silence, silence.contains(hours) { continue }
         let point = sample(hours)
         rows.append(HistoryReading(
             timestamp: now.addingTimeInterval((hours - 24) * 3600),
@@ -154,7 +163,11 @@ let macBins = bins { hours in
 /// The phone's day: on battery from 88 % down to 28 %, then on the charger
 /// since 13:13 and still climbing. No `mains` stretch — an iPhone is either
 /// charging or it is not, and the code path is the same one.
-let phoneBins = bins { hours in
+///
+/// Six hours of it — 03:00 to 09:00 of the window, the night the Mac's display
+/// spent asleep — were never polled at all, which is what the phone's real day
+/// looks like and what the stubs in the export are there to show.
+let phoneBins = bins(silence: 3.0..<9.0) { hours in
     let chargeStart = 24 - hoursAgo(phoneSessionStart)
     if hours < chargeStart {
         let progress = hours / max(0.01, chargeStart)

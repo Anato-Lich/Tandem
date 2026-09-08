@@ -474,6 +474,10 @@ extension HistoryBinState {
         case .battery: return SummaryPalette.green
         case .charging: return SummaryPalette.amber
         case .mains: return SummaryPalette.blue
+        // Nobody was watching: the hairline the grid lines are drawn in, which
+        // is the one colour in this window that already means "structure, not
+        // measurement". It never becomes a bar — see `unknownStubs`.
+        case .unknown: return SummaryPalette.hairline
         }
     }
 }
@@ -487,6 +491,15 @@ private struct SummaryChartBar: Identifiable {
     var color: Color
     var opacity: Double
     var id: Date { mid }
+}
+
+/// One half hour with nothing in it, already resolved to points: where its bar
+/// would have stood, and how wide it would have been.
+private struct SummaryStub: Identifiable {
+    var index: Int
+    var x: CGFloat
+    var width: CGFloat
+    var id: Int { index }
 }
 
 /// One point of the system-load line. `run` breaks the line where the data
@@ -514,6 +527,14 @@ private struct SummaryLoadPoint: Identifiable {
 /// holding. The third is not a nicety: a Mac parked at 90 % on a 140 W brick is
 /// neither charging nor discharging, and this is the only view in the app that
 /// can say so. An iPhone never reports it, and needs no separate code path.
+///
+/// **And a fourth non-state.** A half hour nobody watched (`.unknown`, see
+/// `ChargeSessionBuilder.carryWindow`) gets no bar at all — a 2 pt stub at the
+/// baseline in the hairline colour, and a "no data" key in the legend as soon
+/// as the window holds one. The phone's silence while the Mac's display sleeps
+/// used to be drawn as a flat shelf of carried level ending in a cliff; a level
+/// nobody measured has no height, and the honest mark for it is the width of
+/// the slot and none of its height.
 ///
 /// **The time axis is shared and labelled once**, at the bottom of the power
 /// plot, on whole clock hours six hours apart counted back from now — because
@@ -561,6 +582,14 @@ struct SummaryChartCard: View {
     /// still drawn — an empty grid says "this is where it will appear" — with
     /// one line of text across them.
     var hasData: Bool { bins.filter { $0.percent != nil }.count >= 2 }
+
+    /// Does the window contain half hours nobody watched? Only then is the
+    /// "no data" key worth the space in the legend.
+    var hasUnknownBins: Bool { bins.contains { $0.state == .unknown } }
+
+    /// How tall a stub stands under an unknown half hour: enough to see that
+    /// the slot exists, far too little to be read as a level.
+    private static let stubHeight: CGFloat = 2
 
     // MARK: Geometry
 
@@ -628,6 +657,24 @@ struct SummaryChartCard: View {
         }
     }
 
+    /// The half hours nobody watched, in points rather than in data units: a
+    /// bar of 0 % would be a measurement, and a bar of 2 % would be a lie about
+    /// a battery. So the stubs are drawn *over* the plot, at its baseline, at
+    /// the x offsets the bars themselves use — the same `binWidth` arithmetic
+    /// the bar widths come from, which is why this needs no `GeometryReader`.
+    private var unknownStubs: [SummaryStub] {
+        guard hasData else { return [] }
+        return bins.enumerated().compactMap { index, bin in
+            guard bin.state == .unknown else { return nil }
+            guard let box = geometry(bin, isLast: index == bins.count - 1) else { return nil }
+            return SummaryStub(
+                index: index,
+                x: CGFloat(index) * binWidth + (binWidth - box.width) / 2,
+                width: box.width
+            )
+        }
+    }
+
     /// What the wall was putting in. Amber while charging; a thin blue bar
     /// while the machine is merely being carried by the adapter; **nothing at
     /// all** on battery, where there is no wall and no number.
@@ -689,6 +736,9 @@ struct SummaryChartCard: View {
                     .bar(SummaryPalette.amber, String(localized: "charging")),
                     .bar(SummaryPalette.blue, String(localized: "on mains"))
                 ]
+                // Only when there is something for it to explain: a key for a
+                // mark that is not on the plot is noise.
+                + (hasUnknownBins ? [.bar(SummaryPalette.hairline, String(localized: "no data"))] : [])
             )
             level
             header(
@@ -771,6 +821,22 @@ struct SummaryChartCard: View {
         // Labelled once, under the power plot: two rulers under one another
         // would only invite the eye to check they agree.
         .chartXAxis(.hidden)
+        // The stubs sit on the plot's own baseline: the x axis is hidden, so
+        // the bottom of this view *is* y = 0, and the leading pad is the y
+        // labels, their gutter and the scale's own start padding — the three
+        // numbers `dataWidth` is defined by.
+        .overlay(alignment: .bottomLeading) {
+            ZStack(alignment: .bottomLeading) {
+                ForEach(unknownStubs) { stub in
+                    RoundedRectangle(cornerRadius: Self.barRadius / 2, style: .continuous)
+                        .fill(SummaryPalette.hairline)
+                        .frame(width: stub.width, height: Self.stubHeight)
+                        .offset(x: stub.x)
+                }
+            }
+            .padding(.leading, Self.axisLabelWidth + Self.axisGutter + Self.leadingInset)
+            .allowsHitTesting(false)
+        }
         .overlay(alignment: .center) {
             if !hasData {
                 Text(String(localized: "Collecting history…"))
@@ -887,8 +953,13 @@ struct SummaryLegendItem: Identifiable {
 struct SummaryLegend: View {
     let items: [SummaryLegendItem]
 
+    /// Four keys is the level plot with a "no data" entry in it, and at that
+    /// point the row is wide enough to push the section label beside it onto a
+    /// second line. Closing the gaps buys back the width the fourth key costs.
+    private var spacing: CGFloat { items.count > 3 ? 8 : 12 }
+
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: spacing) {
             ForEach(items) { item in
                 HStack(spacing: 4) {
                     RoundedRectangle(cornerRadius: 1, style: .continuous)

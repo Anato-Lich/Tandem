@@ -318,6 +318,15 @@ public enum HistoryBinState: String, Sendable, Codable, CaseIterable {
     case charging
     /// `external && !isCharging`: on the wall, holding.
     case mains
+    /// **Nobody was watching.** No reading fell in the bin and the last one is
+    /// too old to speak for it (`ChargeSessionBuilder.carryWindow`), so the
+    /// level is unknown too: `percent`, `powerInW` and `systemLoadW` are all
+    /// `nil` beside it. Drawn as a stub at the baseline, never as a bar and
+    /// never as 0 %.
+    ///
+    /// Also what a state string this build has never heard of decodes to — a
+    /// newer build's invention is, from here, exactly "we do not know".
+    case unknown
 }
 
 /// One half-hour bin of the summary window's 24 h chart.
@@ -329,11 +338,15 @@ public enum HistoryBinState: String, Sendable, Codable, CaseIterable {
 /// oldest first, the last one ending at `now`.
 ///
 /// Every value is optional-shaped the way the rest of the store is: `nil` means
-/// **unknown**, never zero (NOTES.md §15.1). A bin with no readings in it at
-/// all still carries the percent *and the state* forward from the bin before —
-/// a battery that was at 90 % on the wall half an hour ago and has not been
-/// heard from since is still at about 90 %, still on the wall — but reports no
-/// power at all, because nobody measured any.
+/// **unknown**, never zero (NOTES.md §15.1). A bin with no readings in it
+/// carries the percent *and the state* forward from the bin before — a battery
+/// that was at 90 % on the wall half an hour ago and has not been heard from
+/// since is still at about 90 %, still on the wall — but only while the silence
+/// is short (`ChargeSessionBuilder.carryWindow`, an hour). Past that the bin is
+/// `.unknown` with no percent at all: the Mac's display sleeping stops the
+/// phone being polled for hours at a time, and carrying the last figure across
+/// that invented a flat shelf of level nobody ever measured. Either way the bin
+/// reports no power, because nobody measured any.
 public struct HistoryBin: Sendable, Codable, Equatable {
     /// The bin's left edge: a whole or half hour.
     public var start: Date
@@ -341,10 +354,15 @@ public struct HistoryBin: Sendable, Codable, Equatable {
     /// forward, else `nil` — nothing has been recorded yet.
     public var percent: Int?
     /// The state most of the bin's readings were in, weighted by time; for a
-    /// bin with no readings, the previous bin's state carried forward (a Mac
-    /// asleep on its charger is still on `.mains` at three in the morning),
-    /// and `.battery` only when nothing precedes it.
+    /// silent bin inside the carry window, the previous bin's state carried
+    /// forward (a Mac asleep on its charger is still on `.mains` a quarter of
+    /// an hour later), and `.unknown` for every longer silence.
     public var state: HistoryBinState
+    /// True when a reading actually fell inside this bin. False for a bin that
+    /// carried its neighbour's figure forward and for an `.unknown` one — the
+    /// flag a view needs to tell "measured" from "inferred" without re-deriving
+    /// the rule.
+    public var isObserved: Bool
     /// Mean `HistoryReading.powerInW` over the bin's readings; `nil` when none
     /// of them carried one (every device on battery, every partial reading).
     public var powerInW: Double?
@@ -356,13 +374,15 @@ public struct HistoryBin: Sendable, Codable, Equatable {
         percent: Int? = nil,
         state: HistoryBinState = .battery,
         powerInW: Double? = nil,
-        systemLoadW: Double? = nil
+        systemLoadW: Double? = nil,
+        isObserved: Bool = false
     ) {
         self.start = start
         self.percent = percent
         self.state = state
         self.powerInW = powerInW
         self.systemLoadW = systemLoadW
+        self.isObserved = isObserved
     }
 
     /// Lenient on purpose, like `DeviceHistory`: this type crosses a file
@@ -374,10 +394,17 @@ public struct HistoryBin: Sendable, Codable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.start = try container.decode(Date.self, forKey: .start)
         self.percent = try container.decodeIfPresent(Int.self, forKey: .percent)
-        let state = try? container.decodeIfPresent(HistoryBinState.self, forKey: .state)
-        self.state = state.flatMap { $0 } ?? .battery
+        // A state string this build does not know is `.unknown`, not
+        // `.battery`: guessing "on the pack" about a newer build's invention is
+        // the very thing this type stopped doing. A file with no `state` key at
+        // all predates the field entirely and keeps the old default.
+        let name = (try? container.decodeIfPresent(String.self, forKey: .state)) ?? nil
+        self.state = name.map { HistoryBinState(rawValue: $0) ?? .unknown } ?? .battery
         self.powerInW = try container.decodeIfPresent(Double.self, forKey: .powerInW)
         self.systemLoadW = try container.decodeIfPresent(Double.self, forKey: .systemLoadW)
+        // Absent in every file written before the flag existed; `false` there
+        // says "this build cannot tell", which is the truth about an old file.
+        self.isObserved = ((try? container.decodeIfPresent(Bool.self, forKey: .isObserved)) ?? nil) ?? false
     }
 }
 

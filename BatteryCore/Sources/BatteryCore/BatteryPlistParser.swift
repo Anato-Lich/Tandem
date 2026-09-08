@@ -280,13 +280,33 @@ public enum BatteryPlistParser {
         let systemPowerInW = normalizedInt(telemetry?["SystemPowerIn"])
             .flatMap { $0 > 0 ? Double($0) / 1000.0 : nil }
 
-        // SystemLoad is what the machine itself is drawing. Its sign is no more
-        // portable than BatteryPower's — the Mac reports -32554 mW on battery
-        // and +13307 mW on the adapter, the iPhone reports +440 mW on battery —
-        // so keep the magnitude and let the UI take the direction from
-        // `externalConnected` (NOTES.md §6). 0 means "not reported".
-        let systemLoadW = normalizedInt(telemetry?["SystemLoad"])
+        // Raw PowerTelemetryData.SystemLoad, kept for diagnostics. Its sign is
+        // not portable -- the Mac reports -32554 mW on battery and +13307 mW
+        // on the adapter, the iPhone reports +440 mW on battery -- so keep the
+        // magnitude. 0 means "not reported".
+        let telemetrySystemLoadW = normalizedInt(telemetry?["SystemLoad"])
             .flatMap { $0 != 0 ? abs(Double($0)) / 1000.0 : nil }
+
+        // What the machine itself is drawing. On the iPhone, telemetry's
+        // SystemLoad already answers this. On the Mac it does not -- it is an
+        // aggregate equal to SystemPowerIn - BatteryPower, not the machine's
+        // own consumption (measured live: SystemLoad 87692 mW while the
+        // reference tool showed the system at 23 W). The honest figure there
+        // is SystemPowerIn minus what is moving into/out of the pack -- signed
+        // battery charge power, positive while charging -- falling back to
+        // that quantity's magnitude when SystemPowerIn is unknown (on
+        // battery). See NOTES.md §6.
+        let systemLoadW: Double?
+        if kind == .mac {
+            let batteryChargeW = Double(voltageMV) * Double(instantAmperage) / 1_000_000.0
+            if let systemPowerInW {
+                systemLoadW = max(0, systemPowerInW - batteryChargeW)
+            } else {
+                systemLoadW = abs(batteryChargeW) > 0 ? abs(batteryChargeW) : nil
+            }
+        } else {
+            systemLoadW = telemetrySystemLoadW
+        }
 
         let adapter = dictionary["AdapterDetails"] as? [String: Any]
         let adapterWatts = normalizedInt(adapter?["Watts"]).flatMap { $0 > 0 ? $0 : nil }
@@ -326,6 +346,7 @@ public enum BatteryPlistParser {
             batteryPowerW: batteryPowerW,
             systemPowerInW: systemPowerInW,
             systemLoadW: systemLoadW,
+            telemetrySystemLoadW: telemetrySystemLoadW,
             adapterWatts: adapterWatts,
             adapterDescription: adapterDescription,
             temperatureC: temperatureC,

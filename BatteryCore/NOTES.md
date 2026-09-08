@@ -212,12 +212,29 @@ empty list as "ask again later", never as "the phone is gone".
   `SystemLoad 13307`, `SystemPowerIn 13307` and `AdapterDetails.Watts 140`. The
   rule the app now follows: **battery current answers "is the pack filling",
   `PowerTelemetryData` answers "how much power is moving".**
-* **`SystemLoad`'s sign is not portable either.** It is what the machine itself
-  is consuming, in mW, and both platforms report it plugged or not — but the Mac
-  writes `-32554` on battery and `+13307` on the adapter, while the iPhone
-  writes `+440` on battery. `BatteryReading.systemLoadW` therefore keeps the
-  **magnitude** and the UI takes the direction from `externalConnected`, the
-  same treatment `BatteryPower` gets. `0` is read as "not reported".
+* **On the Mac, `SystemLoad` is not the machine's own draw.** It is an
+  aggregate — measured live while charging at 79 %: `SystemPowerIn` 81135 mW,
+  `BatteryPower` −6557 mW, but `SystemLoad` 87692 mW, while a reference tool
+  reading the same hardware counters showed the system at 23 W, the adapter at
+  87 W and the battery charging at 64 W. `SystemLoad` there equals
+  `SystemPowerIn − BatteryPower` (telemetry's `BatteryPower`, not the
+  `Voltage × InstantAmperage` product), not the machine's consumption. The
+  honest figure is `SystemPowerIn − batteryChargeW`, where `batteryChargeW =
+  Voltage × InstantAmperage` (signed: `+` charging, `−` discharging), floored
+  at `0`; on battery, where `SystemPowerIn` is unknown, it falls back to
+  `|batteryChargeW|`. `BatteryReading.systemLoadW` computes this for
+  `kind == .mac`. On the iPhone, `SystemLoad` *is* the phone's own
+  consumption (`+440` mW on battery, correct), so `systemLoadW` there is
+  `SystemLoad`'s magnitude unchanged, same as before. Either way the sign is
+  not portable — the parser keeps the magnitude and the UI takes the
+  direction from `externalConnected`, the same treatment `BatteryPower` gets.
+  `0`/absent is read as "not reported". The raw telemetry `SystemLoad`
+  magnitude stays available as `BatteryReading.telemetrySystemLoadW` for
+  diagnostics — on the Mac it is the aggregate `systemLoadW` deliberately no
+  longer uses; on the iPhone the two are equal.
+  (`Tests/BatteryCoreTests/Fixtures/mac-charging.plist` is that charging
+  state: `SystemPowerIn` 81135, `SystemLoad` 87692, `BatteryPower` −6557,
+  `Voltage` 12684, `InstantAmperage` 4651 → `systemLoadW` ≈ 22.1 W.)
 * **`AdapterDetails` is always present.** While unplugged the iPhone reports
   `{Description: "batt", Watts: 0}` and the Mac reports `{FamilyCode: 0}`.
   `adapterWatts` is `nil` when `Watts` is absent or `0`; `adapterDescription`
@@ -341,10 +358,19 @@ surfaces (popover columns, widget power line, summary window):
 
 | state | "system" | "adapter" |
 | --- | --- | --- |
-| plugged, charging | `SystemLoad` → `2 W` | `SystemPowerIn`/`Watts` → `⚡ 36/45 W` |
-| plugged, not charging | `SystemLoad` → `13 W` | `SystemPowerIn`/`Watts` → `13/140 W` |
-| on battery, Mac | `−SystemLoad`, else `−|batteryPowerW|` | `—` |
+| plugged, charging | `systemLoadW` → `2 W` | `SystemPowerIn`/`Watts` → `⚡ 36/45 W` |
+| plugged, not charging | `systemLoadW` → `13 W` | `SystemPowerIn`/`Watts` → `13/140 W` |
+| on battery, Mac | `−systemLoadW`, else `−|batteryPowerW|` | `—` |
 | on battery, iPhone | `—` (deliberate) | `—` |
+
+`systemLoadW` is not one field read off the dump — see §6. On the iPhone it is
+`PowerTelemetryData.SystemLoad`'s magnitude, straight off the device. On the
+Mac it is computed: adapter input minus the battery's own signed charge power
+(`SystemPowerIn − batteryChargeW`, floored at `0`; `|batteryChargeW|` when
+`SystemPowerIn` is unknown, i.e. on battery) — because the Mac's own
+`SystemLoad` key is an aggregate (`SystemPowerIn − BatteryPower`), not the
+machine's draw. The "system" column above is `systemLoadW` on both platforms;
+it just means something different underneath depending on `kind`.
 
 The orange bolt appears on the adapter figure and only while `isCharging`;
 plugged-and-idle is a plain figure, because 13 W really is crossing the cable.

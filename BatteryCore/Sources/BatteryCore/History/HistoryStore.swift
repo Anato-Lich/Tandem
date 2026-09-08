@@ -761,12 +761,21 @@ public actor HistoryStore {
         // The whole week's rows go in, not just the day's: everything before
         // the first bin is used only to seed the carried percent, so a store
         // that has been recording since Tuesday does not open with a hole.
+        //
+        // The sleep markers go in **only for the Mac**: they record that *this
+        // machine* went away and came back (NOTES.md §15.7), which is what
+        // lets a night spent asleep on the charger keep its level instead of
+        // going unknown. A phone's silence is never explained by them — the
+        // Mac sleeping is precisely why nobody was polling the phone — so its
+        // holes stay holes.
+        let sleeps = known?.kind == .mac ? try markers(database, from: weekStart, through: now) : []
         let bins = ChargeSessionBuilder.bins(
             from: window,
             device: device,
             now: now,
             count: Self.binCount,
-            calendar: calendar
+            calendar: calendar,
+            markers: sleeps
         )
 
         return DeviceHistory(

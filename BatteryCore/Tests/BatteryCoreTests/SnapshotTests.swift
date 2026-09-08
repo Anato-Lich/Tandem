@@ -56,9 +56,13 @@ struct SnapshotTests {
     func formatting() throws {
         let (mac, phone) = try statuses()
         let macLine = StatusFormatter.line(for: mac, now: referenceDate)
-        // MacBook Pro  81 %  discharging  -32.6 W  2:46 left
+        // MacBook Pro  81 %  discharging  -33.0 W  2:46 left
+        //
+        // systemLoadW on battery is |Voltage x InstantAmperage| (12108 mV x
+        // 2724 mA = 32.982192 W), not the telemetry SystemLoad aggregate
+        // (32.554 W) -- see ParserTests.systemLoadMagnitude.
         #expect(macLine.hasPrefix("MacBook Pro  81 %  discharging  "))
-        #expect(macLine.contains("\u{2212}32.6 W"))
+        #expect(macLine.contains("\u{2212}33.0 W"))
         #expect(macLine.hasSuffix("2:46 left"))
 
         let phoneLine = StatusFormatter.line(for: phone, now: referenceDate)

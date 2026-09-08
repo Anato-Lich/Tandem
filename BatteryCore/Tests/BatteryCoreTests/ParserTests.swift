@@ -126,8 +126,11 @@ struct ParserTests {
         // "draw 0 W" if it were the only source.
         #expect(reading.instantAmperageMA == 0)
         #expect(reading.batteryPowerW == 0)
-        // SystemLoad 13307 mW -- what the Mac is actually consuming.
+        // Amperage 0, so batteryChargeW is 0: systemLoadW is just SystemPowerIn,
+        // 13307 mW -- what the Mac is actually consuming, and here it agrees
+        // with the raw telemetry SystemLoad (also 13307 mW).
         #expect(reading.systemLoadW == 13.307)
+        #expect(reading.telemetrySystemLoadW == 13.307)
         // SystemPowerIn 13307 mW -- what the adapter is actually supplying.
         #expect(reading.systemPowerInW == 13.307)
         // AdapterDetails.Watts -- what it *could* supply.
@@ -137,21 +140,26 @@ struct ParserTests {
         #expect(ChargeEstimator.chargingWatts(for: reading) == nil)
     }
 
-    @Test("SystemLoad's sign is not portable, so the magnitude is kept")
+    @Test("On the Mac, systemLoadW is SystemPowerIn minus signed battery charge power, not the telemetry aggregate")
     func systemLoadMagnitude() throws {
-        // Mac on battery: SystemLoad -32554 mW, BatteryPower +32554 mW.
+        // Mac on battery: SystemPowerIn absent, Voltage 12108 mV x InstantAmperage
+        // -2724 mA = -32.982192 W (discharging), so systemLoadW falls back to
+        // that magnitude -- not the telemetry SystemLoad aggregate (-32554 mW).
         let mac = try BatteryPlistParser.parseMac(Fixture.macDischarging.data, timestamp: referenceDate)
-        #expect(mac.systemLoadW == 32.554)
-        // iPhone on battery: SystemLoad +440 mW, BatteryPower -440 mW.
+        #expect(abs(mac.systemLoadW! - 32.982192) < 0.000_001)
+        #expect(mac.telemetrySystemLoadW == 32.554)
+        // iPhone on battery: SystemLoad +440 mW, BatteryPower -440 mW. The
+        // iPhone's SystemLoad is already correct, so systemLoadW passes it through.
         let phone = try BatteryPlistParser.parseIPhone(Fixture.iphoneDischargingWiFi.data, timestamp: referenceDate)
         #expect(phone.systemLoadW == 0.44)
+        #expect(phone.telemetrySystemLoadW == 0.44)
         // iPhone charging: the phone's own consumption, not the wall power.
         let charging = try BatteryPlistParser.parseIPhone(Fixture.iphoneChargingUSB.data, timestamp: referenceDate)
         #expect(charging.systemLoadW == 1.9)
         #expect(charging.systemPowerInW == 13.049)
     }
 
-    @Test("A SystemLoad stored as an unsigned two's complement still decodes")
+    @Test("A SystemLoad stored as an unsigned two's complement still decodes into telemetrySystemLoadW")
     func systemLoadUnsigned() throws {
         var dictionary = try BatteryPlistParser.rootDictionary(from: Fixture.macDischarging.data)
         var telemetry = dictionary["PowerTelemetryData"] as! [String: Any]
@@ -161,7 +169,30 @@ struct ParserTests {
         let reading = try BatteryPlistParser.parse(
             dictionary: dictionary, kind: .mac, name: "MacBook Pro", transport: .local
         )
-        #expect(reading.systemLoadW == 32.554)
+        // The raw telemetry figure decodes correctly...
+        #expect(reading.telemetrySystemLoadW == 32.554)
+        // ...but the Mac's systemLoadW is computed from Voltage x InstantAmperage,
+        // not the telemetry SystemLoad this test just overrode.
+        #expect(abs(reading.systemLoadW! - 32.982192) < 0.000_001)
+    }
+
+    @Test("Mac charging: systemLoadW is the adapter input minus the battery's charge power")
+    func macCharging() throws {
+        let reading = try BatteryPlistParser.parseMac(
+            Fixture.macCharging.data, deviceID: "mac", name: "MacBook Pro", timestamp: referenceDate
+        )
+
+        #expect(reading.isCharging)
+        #expect(reading.externalConnected)
+        // PowerTelemetryData.SystemPowerIn 81135 mW.
+        #expect(abs(reading.systemPowerInW! - 81.135) < 0.000_1)
+        // Voltage 12684 mV x InstantAmperage 4651 mA = 58.993284 W into the
+        // pack; 81.135 - 58.993284 = 22.141716 W -- the honest system draw,
+        // not the telemetry SystemLoad aggregate (87692 mW).
+        #expect(abs(reading.systemLoadW! - 22.1) < 0.5)
+        #expect(reading.adapterWatts == 140)
+        // The raw telemetry aggregate stays available for diagnostics.
+        #expect(reading.telemetrySystemLoadW == 87.692)
     }
 
     @Test("Mac dumps come wrapped in a one-element array")

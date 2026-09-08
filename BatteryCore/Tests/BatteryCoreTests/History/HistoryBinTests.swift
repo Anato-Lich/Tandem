@@ -40,9 +40,19 @@ struct HistoryBinTests {
         )
     }
 
-    private func bins(_ rows: [HistoryReading]) -> [HistoryBin] {
-        ChargeSessionBuilder.bins(from: rows, device: "mac", now: now, calendar: calendar)
+    private func bins(_ rows: [HistoryReading], markers: [SleepMarker] = []) -> [HistoryBin] {
+        ChargeSessionBuilder.bins(from: rows, device: "mac", now: now, calendar: calendar, markers: markers)
     }
+
+    private func marker(minutesBeforeNow: Double, _ kind: SleepMarker.Kind) -> SleepMarker {
+        SleepMarker(timestamp: now.addingTimeInterval(-minutesBeforeNow * 60), kind: kind)
+    }
+
+    /// Minutes before `now` that land `offset` minutes *before* the window's
+    /// first bin, so a seeding reading can be placed at a known distance from
+    /// it: the window is 47 whole bins plus the 27 minutes `now` is into the
+    /// last one.
+    private func beforeWindow(_ offset: Double) -> Double { 27 + 47 * 30 + offset }
 
     // MARK: - The grid
 
@@ -65,10 +75,10 @@ struct HistoryBinTests {
 
     // MARK: - Percent
 
-    @Test("A bin takes the last reading in it; a gap carries the previous figure forward")
+    @Test("A bin takes the last reading in it; a short gap carries the figure forward")
     func carriedPercent() {
         // Readings in the two oldest bins and in the newest one; the 45 bins in
-        // between are a hole.
+        // between are a hole nobody watched.
         let result = bins([
             row(minutesBeforeNow: 1425, percent: 80),   // bin 0
             row(minutesBeforeNow: 1410, percent: 78),   // bin 0, later
@@ -77,30 +87,107 @@ struct HistoryBinTests {
         ])
         #expect(result[0].percent == 78)                // the last one in the bin
         #expect(result[1].percent == 70)
-        // Carried, unchanged, right across the hole.
-        #expect(result[2...46].allSatisfy { $0.percent == 70 })
+        #expect(result[0].isObserved)
+        #expect(result[1].isObserved)
+        // Bin 2 ends 45 minutes after the last reading, bin 3 ends 75 minutes
+        // after it: the first still carries, the second is past the hour.
+        #expect(result[2].percent == 70)
+        #expect(result[2].state == .battery)
+        #expect(result[2].isObserved == false)
+        #expect(result[3...46].allSatisfy { $0.percent == nil })
+        #expect(result[3...46].allSatisfy { $0.state == .unknown })
+        #expect(result[3...46].allSatisfy { $0.isObserved == false })
         #expect(result[47].percent == 41)
         // And nothing is invented for the gap: no power, no load.
         #expect(result[20].powerInW == nil)
         #expect(result[20].systemLoadW == nil)
     }
 
-    @Test("Bins before the first reading of all are nil, not zero")
+    @Test("A gap of an hour or less keeps the level; the bin past the hour does not")
+    func carryWindow() {
+        // One reading, 63 minutes back, in bin 45. Bin 46 ends 33 minutes after
+        // it and inherits both the level and the state; the last bin ends at
+        // `now`, 63 minutes after the only thing anyone measured, and does not.
+        let result = bins([row(minutesBeforeNow: 63, percent: 55, external: true)])
+        #expect(result[45].percent == 55)
+        #expect(result[45].isObserved)
+        #expect(result[46].percent == 55)
+        #expect(result[46].state == .mains)
+        #expect(result[46].isObserved == false)
+        #expect(result[47].percent == nil)
+        #expect(result[47].state == .unknown)
+        #expect(result[47].powerInW == nil)
+    }
+
+    @Test("The last bin goes unknown once the newest reading is over an hour old")
+    func staleLastBin() {
+        // 58 minutes: still inside the window, so the present is still the
+        // level we last saw.
+        let fresh = bins([row(minutesBeforeNow: 58, percent: 76)])
+        #expect(fresh[47].percent == 76)
+        #expect(fresh[47].state == .battery)
+        #expect(fresh[47].isObserved == false)
+
+        // 61: the app has nothing to say about right now.
+        let stale = bins([row(minutesBeforeNow: 61, percent: 76)])
+        #expect(stale[47].percent == nil)
+        #expect(stale[47].state == .unknown)
+    }
+
+    @Test("A phone that goes off the air is unknown, not a flat shelf")
+    func phoneGapWithNoMarkers() {
+        // The screenshot this rule came from: 76 % at 01:00, silence while the
+        // Mac's display slept, and 52 % when the polling came back ten hours
+        // later. No markers apply to a phone, so nothing bridges the hole.
+        let rows = (0..<6).map { row(minutesBeforeNow: 1400 - Double($0) * 10, percent: 76) }
+            + [row(minutesBeforeNow: 60, percent: 52)]
+        let result = bins(rows, markers: [marker(minutesBeforeNow: 1300, .sleep), marker(minutesBeforeNow: 100, .wake)])
+        // Two bins of carry after the last morning reading, then nothing.
+        #expect(result[3].percent == 76)
+        #expect(result[5...44].allSatisfy { $0.percent == nil })
+        #expect(result[5...44].allSatisfy { $0.state == .unknown })
+        // The readings after the gap resume normally.
+        #expect(result[45].percent == 52)
+        #expect(result[45].isObserved)
+    }
+
+    @Test("Bins before the first reading of all are unknown, not zero and not on the pack")
     func nothingYet() {
         let result = bins([row(minutesBeforeNow: 20, percent: 41)])
         #expect(result[0].percent == nil)
+        #expect(result[0].state == .unknown)
+        #expect(result[0].isObserved == false)
         #expect(result[46].percent == nil)
+        #expect(result[46].state == .unknown)
         #expect(result[47].percent == 41)
+        #expect(result[47].isObserved)
     }
 
-    @Test("A reading older than the window seeds the carry without becoming a bin of its own")
+    @Test("A reading just older than the window seeds the carry without becoming a bin of its own")
     func seededFromBeforeTheWindow() {
         let result = bins([
-            row(minutesBeforeNow: 3 * 24 * 60, percent: 64),   // three days ago
+            row(minutesBeforeNow: beforeWindow(20), percent: 64),   // 20 min before bin 0
             row(minutesBeforeNow: 10, percent: 55)
         ])
+        // Bin 0 ends 50 minutes after the seed and takes it; bin 1 ends 80
+        // minutes after it and does not.
         #expect(result[0].percent == 64)
-        #expect(result[46].percent == 64)
+        #expect(result[0].isObserved == false)
+        #expect(result[1].percent == nil)
+        #expect(result[1].state == .unknown)
+        #expect(result[46].percent == nil)
+        #expect(result[47].percent == 55)
+    }
+
+    @Test("A seed from days before the window does not paint the window")
+    func staleSeedDoesNotCarry() {
+        let result = bins([
+            row(minutesBeforeNow: 3 * 24 * 60, percent: 64, charging: true, external: true),
+            row(minutesBeforeNow: 10, percent: 55)
+        ])
+        #expect(result[0].percent == nil)
+        #expect(result[0].state == .unknown)
+        #expect(result[46].state == .unknown)
         #expect(result[47].percent == 55)
     }
 
@@ -141,36 +228,85 @@ struct HistoryBinTests {
         #expect(result[45].state == .mains)
         #expect(result[46].state == .battery)
         #expect(result[47].state == .battery)
-        // Nothing at all precedes bin 10, so it has no state to inherit.
-        #expect(result[10].state == .battery)
+        // Nothing at all precedes bin 10, so it has nothing to inherit — and
+        // "no reading" is not "on the pack".
+        #expect(result[10].state == .unknown)
+        #expect(result[10].percent == nil)
     }
 
-    @Test("A silent bin inherits the state before it: a Mac asleep on the charger stays on mains")
+    @Test("A silent bin inherits the state before it while the silence is short")
     func carriedState() {
-        // Plugged in and holding at 22:00, then the lid closes and the machine
-        // says nothing for eight hours. The night is not a discharge.
+        // Plugged in and holding, then twenty minutes of quiet: the state and
+        // the level both hold across it.
         let result = bins([
+            row(minutesBeforeNow: 90, percent: 90, external: true),
+            row(minutesBeforeNow: 80, percent: 90, external: true),
+            row(minutesBeforeNow: 10, percent: 90, external: true)
+        ])
+        // 44 and 45 hold the two readings; 46 is the quiet between them and the
+        // one that comes next.
+        #expect(result[44].state == .mains)
+        #expect(result[45].state == .mains)
+        #expect(result[46].state == .mains)
+        #expect(result[46].percent == 90)
+        #expect(result[46].isObserved == false)
+        // Still nothing invented: the hole measured no watts and reports none.
+        #expect(result[46].powerInW == nil)
+        #expect(result[46].systemLoadW == nil)
+    }
+
+    @Test("A Mac that slept on its charger keeps mains across the whole night")
+    func sleptOnTheCharger() {
+        // Plugged in and holding at 22:00, the lid closes, and the machine says
+        // nothing for nearly ten hours. The app recorded both ends of that, so
+        // the night is neither a discharge nor a hole.
+        let rows = [
             row(minutesBeforeNow: 600, percent: 90, external: true),
             row(minutesBeforeNow: 590, percent: 90, external: true),
             row(minutesBeforeNow: 10, percent: 90, external: true)
-        ])
-        // 27 and 28 hold the two readings; 29...46 are the silent night.
+        ]
+        let markers = [marker(minutesBeforeNow: 585, .sleep), marker(minutesBeforeNow: 15, .wake)]
+        let result = bins(rows, markers: markers)
+        // 27 and 28 hold the two evening readings; 29...46 are the slept night.
         #expect(result[28].state == .mains)
         #expect(result[29...46].allSatisfy { $0.state == .mains })
         #expect(result[29...46].allSatisfy { $0.percent == 90 })
-        // Still nothing invented: the hole measured no watts and reports none.
+        #expect(result[29...46].allSatisfy { !$0.isObserved })
         #expect(result[35].powerInW == nil)
-        #expect(result[35].systemLoadW == nil)
+
+        // The same night with no markers is exactly what it looks like from
+        // the data alone: hours nobody watched.
+        let unwitnessed = bins(rows)
+        #expect(unwitnessed[29].state == .mains)          // still inside the hour
+        #expect(unwitnessed[32...46].allSatisfy { $0.state == .unknown })
+        #expect(unwitnessed[32...46].allSatisfy { $0.percent == nil })
+    }
+
+    @Test("A sleep gap the machine was carried off through is still a hole")
+    func sleptOffTheCharger() {
+        // Markers on both ends, but the machine went to sleep on the pack: the
+        // bracket says where it went, not that anything held its level.
+        let result = bins(
+            [
+                row(minutesBeforeNow: 600, percent: 90),
+                row(minutesBeforeNow: 10, percent: 62)
+            ],
+            markers: [marker(minutesBeforeNow: 595, .sleep), marker(minutesBeforeNow: 15, .wake)]
+        )
+        #expect(result[32...46].allSatisfy { $0.state == .unknown })
+        #expect(result[32...46].allSatisfy { $0.percent == nil })
+        #expect(result[47].percent == 62)
     }
 
     @Test("The carried state is seeded from the newest reading before the window")
     func stateSeededFromBeforeTheWindow() {
         let result = bins([
-            row(minutesBeforeNow: 3 * 24 * 60, percent: 64, charging: true, external: true),
+            row(minutesBeforeNow: beforeWindow(20), percent: 64, charging: true, external: true),
             row(minutesBeforeNow: 10, percent: 80)
         ])
         #expect(result[0].state == .charging)
-        #expect(result[46].state == .charging)
+        #expect(result[1].state == .unknown)
+        #expect(result[46].state == .unknown)
         #expect(result[47].state == .battery)
     }
 
@@ -324,14 +460,54 @@ struct HistoryBinTests {
         #expect(bare.percent == nil)
         #expect(bare.state == .battery)
         #expect(bare.powerInW == nil)
+        #expect(bare.isObserved == false)
 
-        // A state a newer build invented decodes as `battery` rather than
-        // throwing the whole file away.
+        // A state a newer build invented decodes as `unknown` — "we do not
+        // know" — rather than as `battery` and rather than throwing the whole
+        // file away.
         let future = try HistoryStore.decoder.decode(
             HistoryBin.self,
             from: Data(#"{"start":"2026-09-08T12:00:00Z","state":"wireless","percent":44}"#.utf8)
         )
-        #expect(future.state == .battery)
+        #expect(future.state == .unknown)
         #expect(future.percent == 44)
+    }
+
+    @Test("An unknown bin round-trips, and a file written before isObserved existed decodes")
+    func unknownJSON() throws {
+        // Ten hours of silence after one reading: most of the window is
+        // unknown, and it has to survive the file.
+        let history = DeviceHistory(
+            device: "mac", kind: .mac, name: "MacBook Pro", lastSeen: now, percent: 76,
+            bins24h: bins([row(minutesBeforeNow: 700, percent: 76, external: true)])
+        )
+        #expect(history.bins24h.contains { $0.state == .unknown })
+        let data = try HistoryStore.encoder.encode(history)
+        // The new state travels as its own name, not as an absent key.
+        #expect(String(decoding: data, as: UTF8.self).contains("\"unknown\""))
+        let back = try HistoryStore.decoder.decode(DeviceHistory.self, from: data)
+        #expect(back == history)
+        #expect(back.bins24h.filter { $0.state == .unknown }.count
+                == history.bins24h.filter { $0.state == .unknown }.count)
+        #expect(back.bins24h.contains { $0.isObserved })
+
+        // A bin written by a build that had the states but not the flag: it
+        // decodes, and says it cannot vouch for the reading.
+        let old = try HistoryStore.decoder.decode(
+            HistoryBin.self,
+            from: Data(#"{"start":"2026-09-08T12:00:00Z","state":"mains","percent":90,"powerInW":13}"#.utf8)
+        )
+        #expect(old.state == .mains)
+        #expect(old.percent == 90)
+        #expect(old.powerInW == 13)
+        #expect(old.isObserved == false)
+
+        // And an explicit `isObserved` is read back as written.
+        let observed = try HistoryStore.decoder.decode(
+            HistoryBin.self,
+            from: Data(#"{"start":"2026-09-08T12:00:00Z","state":"unknown","isObserved":false}"#.utf8)
+        )
+        #expect(observed.state == .unknown)
+        #expect(observed.percent == nil)
     }
 }

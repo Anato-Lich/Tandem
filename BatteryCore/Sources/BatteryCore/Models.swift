@@ -72,15 +72,28 @@ public struct BatteryReading: Sendable, Codable, Equatable {
     /// (`PowerTelemetryData.SystemPowerIn`). `nil` on battery, where the key is
     /// `0` rather than absent.
     public var systemPowerInW: Double?
-    /// What the machine itself is consuming right now
-    /// (`PowerTelemetryData.SystemLoad`), as a **magnitude** in watts.
+    /// What the machine itself is consuming right now, as a **magnitude** in
+    /// watts.
     ///
-    /// The sign is not portable — the Mac reports `-32554` mW on battery and
-    /// `+13307` mW on the adapter, the iPhone reports `+440` mW on battery — so
-    /// the parser keeps the magnitude and the UI takes the direction from
-    /// `externalConnected`, exactly as it does for `BatteryPower` (NOTES.md §6).
-    /// `nil` when the device does not report the key at all.
+    /// On the iPhone this is `PowerTelemetryData.SystemLoad` straight off the
+    /// device, which is correct there. On the Mac, `SystemLoad` is an
+    /// aggregate (`SystemPowerIn − BatteryPower`, not the machine's own draw —
+    /// see NOTES.md §6), so `systemLoadW` there is instead computed as
+    /// `systemPowerInW − batteryChargeW` (falling back to `|batteryChargeW|`
+    /// when `systemPowerInW` is unknown), where `batteryChargeW` is the
+    /// signed `voltageMV × instantAmperageMA` power into/out of the pack.
+    ///
+    /// The sign is not portable across platforms — the parser keeps the
+    /// magnitude and the UI takes the direction from `externalConnected`,
+    /// exactly as it does for `BatteryPower`. `nil` when there is nothing to
+    /// compute it from.
     public var systemLoadW: Double?
+    /// The raw `PowerTelemetryData.SystemLoad` telemetry value (magnitude, in
+    /// watts), kept for diagnostics. On the iPhone this equals `systemLoadW`;
+    /// on the Mac it is the aggregate figure `systemLoadW` deliberately no
+    /// longer uses (NOTES.md §6). `nil` when the device does not report the
+    /// key at all.
+    public var telemetrySystemLoadW: Double?
     public var adapterWatts: Int?
     public var adapterDescription: String?
     public var temperatureC: Double
@@ -128,6 +141,7 @@ public struct BatteryReading: Sendable, Codable, Equatable {
         batteryPowerW: Double,
         systemPowerInW: Double? = nil,
         systemLoadW: Double? = nil,
+        telemetrySystemLoadW: Double? = nil,
         adapterWatts: Int? = nil,
         adapterDescription: String? = nil,
         temperatureC: Double,
@@ -154,6 +168,7 @@ public struct BatteryReading: Sendable, Codable, Equatable {
         self.batteryPowerW = batteryPowerW
         self.systemPowerInW = systemPowerInW
         self.systemLoadW = systemLoadW
+        self.telemetrySystemLoadW = telemetrySystemLoadW
         self.adapterWatts = adapterWatts
         self.adapterDescription = adapterDescription
         self.temperatureC = temperatureC
@@ -208,6 +223,7 @@ extension BatteryReading {
             batteryPowerW: 0,
             systemPowerInW: nil,
             systemLoadW: nil,
+            telemetrySystemLoadW: nil,
             adapterWatts: nil,
             adapterDescription: nil,
             temperatureC: 0,

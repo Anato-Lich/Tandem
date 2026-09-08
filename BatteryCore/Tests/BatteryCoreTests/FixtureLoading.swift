@@ -10,6 +10,10 @@ enum Fixture: String, CaseIterable {
     /// A Mac sitting on a 140 W brick with `Amperage == 0`: the reading where
     /// battery current says nothing and only `PowerTelemetryData` does.
     case macPluggedNotCharging = "mac-plugged-not-charging"
+    /// A Mac charging on a 140 W brick: SystemPowerIn 81135 mW, BatteryPower
+    /// -6557 mW (into the pack), SystemLoad 87692 mW (the aggregate the Mac
+    /// reports, not the machine's own draw -- NOTES.md §6).
+    case macCharging = "mac-charging"
 
     var data: Data {
         get throws {

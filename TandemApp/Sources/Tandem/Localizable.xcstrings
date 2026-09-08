@@ -1413,6 +1413,24 @@
           }
         }
       }
+    },
+    "no data": {
+      "comment": "Summary window, 24 h chart legend: the stubs standing for half hours nobody was watching — the level there is unknown, not zero.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no data"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "нет данных"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

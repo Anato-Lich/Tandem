@@ -246,6 +246,23 @@ public enum ChargeSessionBuilder {
     /// The width of one bin of the summary window's 24 h chart: half an hour.
     public static let binWidth: TimeInterval = 30 * 60
 
+    /// How long a reading may speak for the silence after it: an hour.
+    ///
+    /// A bin with no readings of its own inherits the level and the state of
+    /// the last reading before it only while that reading is no older than
+    /// this at the bin's own right edge. Past that the bin is `.unknown` and
+    /// carries no percent at all.
+    ///
+    /// An hour, because the app's own silences are minutes long — the poll is
+    /// seconds and the skip rule (NOTES.md §15) still writes a row every ten
+    /// minutes on the quietest night — so anything longer is not the recorder
+    /// being economical, it is nobody looking: the Mac's display sleeps, the
+    /// energy policy stops polling the phone over Wi-Fi, and the next thing
+    /// anyone knows about that battery is hours later and 24 points lower.
+    /// Carrying the old figure across that drew a flat shelf of level that was
+    /// never measured, ending in a cliff.
+    public static let carryWindow: TimeInterval = 60 * 60
+
     /// The last 24 h as fixed half-hour bins, oldest first.
     ///
     /// The grid is pinned to the clock: the **last** bin is the half hour `now`
@@ -259,25 +276,37 @@ public enum ChargeSessionBuilder {
     ///
     /// * **`percent`** is the **last reading inside the bin**. A bin with no
     ///   readings carries the previous bin's figure forward — a pack that was
-    ///   at 90 % half an hour ago and has not been heard from since is still at
-    ///   about 90 % — and is `nil` only until the first reading of all. The
-    ///   carry is seeded from the newest reading *before* the window when there
-    ///   is one, so a store that has been running for a week does not open with
-    ///   a hole.
+    ///   at 90 % ten minutes ago and has not been heard from since is still at
+    ///   about 90 % — but only while the last reading is no more than
+    ///   `carryWindow` old at the bin's right edge. Beyond that the bin is
+    ///   `.unknown`: no percent, no state, no power. The carry is seeded from
+    ///   the newest reading *before* the window when there is one, under the
+    ///   same hour, so a store that recorded until five minutes before the
+    ///   window opens does not open with a hole and one that stopped last
+    ///   Tuesday does not open with a fiction.
     /// * **`state`** is the majority of the bin's readings **weighted by
     ///   time**: each reading holds its state until the next reading (clipped
     ///   to the bin's right edge), `external && isCharging` is `.charging`,
     ///   `external && !isCharging` is `.mains`, and anything else is
     ///   `.battery`. A tie — including a bin whose one reading sits on its very
     ///   edge and so weighs nothing — goes to the last reading in the bin. A
-    ///   bin with **no** readings carries the previous bin's state forward,
-    ///   exactly as it carries the percent: a Mac that fell asleep on its
-    ///   charger at midnight was still on the charger at three, and the old
-    ///   rule — every silent bin is `.battery` — drew that night as a green
-    ///   discharge that never happened. Seeded, like the percent, from the
-    ///   newest reading before the window; `.battery` only when nothing at all
-    ///   precedes the bin. The power fields stay `nil` through the hole, so an
-    ///   unobserved stretch still contributes no watts to any plot.
+    ///   bin with **no** readings carries the previous bin's state forward
+    ///   exactly as it carries the percent, and turns `.unknown` with it — as
+    ///   does a bin before the first reading of all, because never having heard
+    ///   from a battery is not the same as it being on the pack. The power
+    ///   fields stay `nil` through the hole either way, so an unobserved
+    ///   stretch still contributes no watts to any plot.
+    /// * **`markers`** buy back the one long silence the app can account for
+    ///   (NOTES.md §15.7): a gap the Mac reported sleeping and waking inside,
+    ///   with readings on **both** sides on external power, is a machine that
+    ///   slept on its charger, and the bins across it keep the carried
+    ///   `.mains`/`.charging` and the carried percent however long it lasted.
+    ///   That is the whole point of recording the markers. A gap with no
+    ///   bracket — an iPhone that simply went off the air, a Mac carried away
+    ///   — is `.unknown`, and so is a gap that is still open: the newest
+    ///   reading may not speak for the hours since, so the bin containing
+    ///   `now` goes `.unknown` too once that reading is over an hour old.
+    /// * **`isObserved`** is true only for a bin a reading actually fell in.
     /// * **`powerInW`** and **`systemLoadW`** are the plain means over the
     ///   readings that carried a figure, and `nil` when none did.
     ///
@@ -288,7 +317,8 @@ public enum ChargeSessionBuilder {
         device: String? = nil,
         now: Date = Date(),
         count: Int = 48,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        markers: [SleepMarker] = []
     ) -> [HistoryBin] {
         guard count > 0 else { return [] }
         let rows = readings
@@ -302,16 +332,24 @@ public enum ChargeSessionBuilder {
         let alignedNow = now.timeIntervalSince(hour) >= binWidth ? hour.addingTimeInterval(binWidth) : hour
         let first = alignedNow.addingTimeInterval(-Double(count - 1) * binWidth)
 
+        // The gaps the app can vouch for: it saw the machine go to sleep on
+        // the charger and come back to it. Everything else is a hole.
+        let bridged = sleptThroughGaps(rows.filter { $0.timestamp <= now }, markers: markers)
+
         // Bucket once; every row is looked at exactly twice.
         var buckets: [[HistoryReading]] = Array(repeating: [], count: count)
         var carried: Int?
         var carriedState: HistoryBinState?
+        /// When the reading behind the two carries was taken — what makes them
+        /// go stale.
+        var carriedAt: Date?
         for row in rows {
             if row.timestamp < first {
                 // Seeds both carries and nothing else: a reading from before
                 // the window is not a bin, it is what the window opens on.
                 carried = row.percent
                 carriedState = state(of: row)
+                carriedAt = row.timestamp
                 continue
             }
             guard row.timestamp <= now else { continue }
@@ -326,10 +364,21 @@ public enum ChargeSessionBuilder {
             let end = min(start.addingTimeInterval(binWidth), max(now, start))
             let rows = buckets[index]
             guard let last = rows.last else {
-                result.append(HistoryBin(start: start, percent: carried, state: carriedState ?? .battery))
+                // Silent. Inherit only from a reading that can still speak for
+                // this bin: one under an hour old at the bin's own right edge,
+                // or one on the near side of a gap the machine slept through on
+                // its charger.
+                let fresh = carriedAt.map { end.timeIntervalSince($0) <= carryWindow } ?? false
+                let sleptThrough = carriedAt.map { bridged.contains($0) } ?? false
+                if let carriedState, fresh || sleptThrough {
+                    result.append(HistoryBin(start: start, percent: carried, state: carriedState))
+                } else {
+                    result.append(HistoryBin(start: start, percent: nil, state: .unknown))
+                }
                 continue
             }
             carried = last.percent
+            carriedAt = last.timestamp
 
             var weights: [HistoryBinState: TimeInterval] = [:]
             for (offset, row) in rows.enumerated() {
@@ -350,10 +399,40 @@ public enum ChargeSessionBuilder {
                 percent: last.percent,
                 state: winner,
                 powerInW: mean(rows.compactMap(\.powerInW)),
-                systemLoadW: mean(rows.compactMap(\.systemLoadW))
+                systemLoadW: mean(rows.compactMap(\.systemLoadW)),
+                isObserved: true
             ))
         }
         return result
+    }
+
+    /// The timestamps of the readings whose following gap the app accounted
+    /// for: longer than `carryWindow`, external power on both sides of it, and
+    /// a sleep and a wake recorded inside it. Keyed by the reading *before* the
+    /// gap, which is exactly what the bin walk is carrying when it reaches one.
+    ///
+    /// Empty whenever there are no markers, which is every device but this Mac:
+    /// the markers say "this machine slept", and no phone's silence is
+    /// explained by that (`HistoryStore.summary(for:)` hands them in only for
+    /// the Mac).
+    static func sleptThroughGaps(
+        _ rows: [HistoryReading],
+        markers: [SleepMarker]
+    ) -> Set<Date> {
+        guard !markers.isEmpty else { return [] }
+        let sleeps = markers.sorted { $0.timestamp < $1.timestamp }
+        var bridged: Set<Date> = []
+        var previous: HistoryReading?
+        for row in rows {
+            defer { previous = row }
+            guard let previous,
+                  row.timestamp.timeIntervalSince(previous.timestamp) > carryWindow,
+                  previous.externalConnected, row.externalConnected,
+                  isSleepGap(from: previous.timestamp, to: row.timestamp, markers: sleeps)
+            else { continue }
+            bridged.insert(previous.timestamp)
+        }
+        return bridged
     }
 
     /// `external && charging` → charging, `external` alone → mains, else
