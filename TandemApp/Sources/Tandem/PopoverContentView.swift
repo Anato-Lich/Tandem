@@ -39,12 +39,13 @@ struct PopoverContentView: View {
                 }
             }
             .padding(14)
-
-            Divider()
-
-            FooterView()
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+            // The overflow menu sits in the bottom-right corner of the readout
+            // itself: a footer of its own was a blank line with one glyph in it.
+            .overlay(alignment: .bottomTrailing) {
+                FooterView()
+                    .padding(.trailing, 10)
+                    .padding(.bottom, 8)
+            }
         }
         .frame(width: 300)
         .task {
@@ -67,8 +68,8 @@ struct PopoverContentView: View {
     }
 }
 
-/// Just the right-aligned overflow menu: "Resync" (only while the iPhone is
-/// overdue), Launch-at-login toggle, Quit. Freshness is silent everywhere
+/// Just the overflow menu: Summary, layout, Resync, Launch-at-login toggle,
+/// Quit. Freshness is silent everywhere
 /// else in the popover, so the footer carries no text of its own.
 struct FooterView: View {
     @Environment(TandemModel.self) private var model
@@ -95,16 +96,13 @@ struct FooterView: View {
                     .labelsHidden()
                 }
                 Divider()
-                // Stays put while it runs, even once the phone answers and
-                // `phoneNeedsResync` goes false: an item that vanished halfway
-                // through would look like the click had failed.
-                if model.phoneNeedsResync || model.isResyncing {
-                    Button(model.isResyncing ? String(localized: "Resyncing…") : String(localized: "Resync")) {
-                        model.resync()
-                    }
-                    .disabled(model.isResyncing)
-                    Divider()
+                // Always offered: a manual rediscovery is useful long before
+                // the five-minute silence that flags the row.
+                Button(model.isResyncing ? String(localized: "Resyncing…") : String(localized: "Resync")) {
+                    model.resync()
                 }
+                .disabled(model.isResyncing)
+                Divider()
                 Toggle(String(localized: "Launch at login"), isOn: launchAtLoginBinding)
                 Divider()
                 Button(String(localized: "Quit Tandem")) { NSApplication.shared.terminate(nil) }
