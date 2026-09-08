@@ -293,7 +293,7 @@ struct DevicePresentation {
     /// against a clock and "12 min" goes stale the moment it is drawn.
     static func noContactText(_ date: Date) -> String {
         String(
-            format: String(localized: "no contact since %@",
+            format: String(localized: "silent since %@",
                            comment: "Widget: the device stopped reporting; %@ is a short time of day."),
             clock(date)
         )

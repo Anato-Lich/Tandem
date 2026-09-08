@@ -39,10 +39,13 @@ struct RingView: View {
 struct RingBadge: View {
     let symbol: String
     var diameter: CGFloat = 18
+    /// Orange for charging and stale; the plug badge takes the mains blue so
+    /// the three badges read as three different states at a glance.
+    var tint: Color = .orange
 
     var body: some View {
         ZStack {
-            Circle().fill(Color.orange)
+            Circle().fill(tint)
             Image(systemName: symbol)
                 .font(.system(size: diameter * 0.55, weight: .bold))
                 .foregroundStyle(Color.black.opacity(0.8))

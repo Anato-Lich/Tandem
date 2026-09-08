@@ -234,6 +234,16 @@
           }
         }
       }
+    },
+    "silent since %@": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "тишина с %@"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

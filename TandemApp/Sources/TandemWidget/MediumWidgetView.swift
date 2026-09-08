@@ -83,6 +83,11 @@ struct DeviceTile: View {
                 RingBadge(symbol: "exclamationmark", diameter: 16).offset(x: 1, y: -1)
             } else if device.isCharging {
                 RingBadge(symbol: "bolt.fill", diameter: 16).offset(x: 1, y: -1)
+            } else if device.showsPlugGlyph {
+                // Mains without charging: the plug lives on the ring like the
+                // bolt does, so the power line beside it stays a bare number
+                // that fits at full size.
+                RingBadge(symbol: "powerplug.fill", diameter: 16, tint: BarPalette.plugged).offset(x: 1, y: -1)
             }
         }
     }
@@ -98,11 +103,10 @@ struct DeviceTile: View {
                 .monospacedDigit()
                 .foregroundStyle(Self.style(device.topKind))
                 .lineLimit(1)
-                // "no contact since 14:32" is the longest line the tile ever
-                // holds and it has to survive beside a 52 pt ring in half of a
-                // 344 pt widget — about 95 pt. Hence a floor low enough for
-                // that one string; nothing else comes close to needing it.
-                .minimumScaleFactor(0.45)
+                // Only "no contact since 14:32" ever needs to shrink; every
+                // power line fits at full size beside the ring, and the user
+                // wants those read at the size the mock-up says.
+                .minimumScaleFactor(device.topKind == .plain ? 0.6 : 1.0)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -125,7 +129,8 @@ struct DeviceTile: View {
     /// One `Text`, so the glyph and the number scale together under
     /// `minimumScaleFactor` instead of drifting apart.
     private static func label(_ text: String, plug: Bool) -> Text {
-        plug ? Text(Image(systemName: "powerplug")) + Text(" \(text)") : Text(text)
+        // The plug moved onto the ring as a badge; the line is text only.
+        Text(text)
     }
 
     /// Percent big at the left; the one status baseline-aligned with it at the
