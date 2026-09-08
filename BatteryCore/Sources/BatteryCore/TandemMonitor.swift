@@ -131,6 +131,18 @@ public actor TandemMonitor {
     public private(set) var macError: MonitorError?
     public private(set) var phoneError: MonitorError?
 
+    /// The silence bookkeeping of `DeviceStatus.unreachableSince` — the moment
+    /// the current run of failed reads began, and how long that run is.
+    ///
+    /// Deliberately **not** `phoneFailures`, which is the backoff ladder and is
+    /// zeroed by any event worth re-dialling on (§14.2). A network path change
+    /// is a reason to try again; it is not a reason to claim the phone answered.
+    /// These two are cleared only by a read that actually succeeded.
+    private var phoneUnreachableSince: Date?
+    private var phoneFailedAttempts = 0
+    private var macUnreachableSince: Date?
+    private var macFailedAttempts = 0
+
     public init(
         mac: MacBatterySource = MacBatterySource(),
         phone: PhoneBatterySource = PhoneBatterySource(),
@@ -151,8 +163,14 @@ public actor TandemMonitor {
         let now = Date()
         return TandemSnapshot(
             generatedAt: now,
-            mac: macStatus.map { aged($0, now: now, fullAt: nil, error: macError) },
-            phone: phoneStatus.map { aged($0, now: now, fullAt: lastFullPhoneAt, error: phoneError) },
+            mac: macStatus.map {
+                aged($0, now: now, fullAt: nil, error: macError,
+                     unreachableSince: macUnreachableSince, failedAttempts: macFailedAttempts)
+            },
+            phone: phoneStatus.map {
+                aged($0, now: now, fullAt: lastFullPhoneAt, error: phoneError,
+                     unreachableSince: phoneUnreachableSince, failedAttempts: phoneFailedAttempts)
+            },
             phoneError: phoneError,
             macError: macError
         )
@@ -660,7 +678,7 @@ public actor TandemMonitor {
     /// untouched, and records how old they now are in `detailAge`. It never
     /// reaches the estimator, whose EMA would otherwise be dragged toward zero
     /// by an amperage the battery domain simply does not report.
-    private func applyPhone(_ reading: BatteryReading) {
+    func applyPhone(_ reading: BatteryReading) {
         defer { setPhoneError(nil) }
 
         guard reading.isPartial else {
@@ -704,21 +722,48 @@ public actor TandemMonitor {
 
     // MARK: - Plumbing
 
-    private func setMacError(_ error: MonitorError?) {
+    /// The one place a Mac read's success or failure is recorded, so the
+    /// silence bookkeeping cannot drift from the error.
+    func setMacError(_ error: MonitorError?, now: Date = Date()) {
         macError = error
         lastMacError = error?.description
+        guard error != nil else {
+            macUnreachableSince = nil
+            macFailedAttempts = 0
+            return
+        }
+        macFailedAttempts += 1
+        if macUnreachableSince == nil { macUnreachableSince = now }
     }
 
-    private func setPhoneError(_ error: MonitorError?) {
+    /// The one place a phone read's success or failure is recorded.
+    ///
+    /// Every path that reads the phone ends here: the loop, `pollOnce`, and
+    /// `resync()`. `nil` means a reading arrived — `applyPhone` calls it for a
+    /// partial reading too, which is right: a degraded-tier answer is still the
+    /// phone answering. Anything else starts (or extends) the run of failures
+    /// that `DeviceStatus.isSilent(now:)` judges.
+    func setPhoneError(_ error: MonitorError?, now: Date = Date()) {
         phoneError = error
         lastPhoneError = error?.description
+        guard error != nil else {
+            phoneUnreachableSince = nil
+            phoneFailedAttempts = 0
+            return
+        }
+        phoneFailedAttempts += 1
+        // Kept, not moved: the badge says when the phone went quiet, not when
+        // we last noticed it was still quiet.
+        if phoneUnreachableSince == nil { phoneUnreachableSince = now }
     }
 
     private func aged(
         _ status: DeviceStatus,
         now: Date,
         fullAt: Date?,
-        error: MonitorError?
+        error: MonitorError?,
+        unreachableSince: Date?,
+        failedAttempts: Int
     ) -> DeviceStatus {
         var copy = status
         copy.isStale = now.timeIntervalSince(status.lastSeen) > configuration.staleAfter
@@ -726,6 +771,8 @@ public actor TandemMonitor {
             copy.detailAge = now.timeIntervalSince(fullAt)
         }
         copy.error = error
+        copy.unreachableSince = unreachableSince
+        copy.failedAttempts = failedAttempts
         return copy
     }
 

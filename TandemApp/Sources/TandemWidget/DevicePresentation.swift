@@ -50,7 +50,7 @@ struct DevicePresentation {
         /// The number is what the wall is carrying, not what the pack is
         /// taking, and the colour is the one the `mains` bars are drawn in.
         case plugged
-        /// Secondary: a discharge figure, "on battery", "no contact since
+        /// Secondary: a discharge figure, "on battery", "silent since
         /// 14:32", "no data". Nothing here is a flow of power.
         case plain
     }
@@ -60,19 +60,26 @@ struct DevicePresentation {
     let topText: String?
     let topKind: TopLineKind
 
-    /// `lastSeen` is more than `stalenessWindow` old: dim this device and badge
-    /// its ring.
-    let isStale: Bool
+    /// `DeviceStatus.isSilent(now:)`: we have been *trying and failing* to read
+    /// this device for over ten minutes. The tile drops to 45 % and its ring
+    /// takes an exclamation mark instead of the bolt.
+    ///
+    /// Not staleness. The phone is polled every 2–5 minutes when somebody is
+    /// looking and not at all while the display sleeps (NOTES.md §14), so a
+    /// reading being twenty minutes old is the design working, not a fault, and
+    /// a badge keyed to `lastSeen` age was lit almost permanently. The rule and
+    /// its two thresholds live on `DeviceStatus` (`silenceWindow`,
+    /// `silenceAttempts`) so the widget and the popover cannot disagree.
+    let isSilent: Bool
 
-    /// When the snapshot last heard from the device — what the silent tile
-    /// writes in both of its slots. Nil for a device never seen at all.
+    /// When the snapshot last heard from the device. Nil for a device never
+    /// seen at all. Never rendered as a fault on its own.
     let lastSeen: Date?
 
-    /// Older than this and the device has gone quiet: the tile drops to 45 %,
-    /// takes an exclamation mark instead of the bolt, and says when it last
-    /// heard anything. Five minutes is the same silence the popover's "Resync"
-    /// offer is keyed to, so the two never disagree about a quiet phone.
-    static let stalenessWindow: TimeInterval = 5 * 60
+    /// The moment the current run of failures began — what a silent tile writes
+    /// in both of its slots ("silent since 14:32" over "14:32"). Nil unless we
+    /// are failing.
+    let unreachableSince: Date?
 
     static let emDash = "\u{2014}"
     static let minus = "\u{2212}"
@@ -98,11 +105,11 @@ struct DevicePresentation {
 
     var percentText: String { percent.map { "\($0) %" } ?? Self.emDash }
 
-    /// A device with a reading that has gone quiet: dimmed, and badged with a
+    /// A device we have been failing to reach: dimmed, and badged with a
     /// warning instead of the charging bolt.
-    var showsStaleBadge: Bool { isStale && percent != nil }
+    var showsSilentBadge: Bool { isSilent && percent != nil }
 
-    var dimming: Double { isStale ? 0.45 : 1.0 }
+    var dimming: Double { isSilent ? 0.45 : 1.0 }
 
     // MARK: - Building
 
@@ -119,8 +126,9 @@ struct DevicePresentation {
             powerText = nil
             showsPlugGlyph = false
             statusText = nil
-            isStale = true
+            isSilent = true
             lastSeen = nil
+            unreachableSince = nil
             topText = Self.noDataLabel
             topKind = .plain
             return
@@ -130,12 +138,17 @@ struct DevicePresentation {
         percent = reading.percent
         isCharging = reading.isCharging
 
-        let age = now.timeIntervalSince(status.lastSeen)
-        let stale = age > Self.stalenessWindow
-        isStale = stale
+        // The one question that decides the whole tile: are we failing, or is
+        // this simply the newest reading anybody has needed?
+        let silent = status.isSilent(now: now)
+        isSilent = silent
         lastSeen = status.lastSeen
+        unreachableSince = status.unreachableSince
+        // How long the silence has run, not how old the reading is.
+        let silentAt = status.unreachableSince ?? status.lastSeen
+        let silence = now.timeIntervalSince(silentAt)
 
-        timeLine = Self.timeLine(status: status, now: now, age: stale ? age : nil)
+        timeLine = Self.timeLine(status: status, now: now, age: silent ? silence : nil)
 
         let power = Self.powerLine(kind: kind, status: status)
         powerText = power
@@ -144,8 +157,8 @@ struct DevicePresentation {
 
         // The top line, one state at a time, in the order of the approved
         // matrix (docs/design/widget/StatesMac, StatesPhone).
-        if stale {
-            topText = Self.noContactText(status.lastSeen)
+        if silent {
+            topText = Self.noContactText(silentAt)
             topKind = .plain
         } else if reading.isCharging {
             topText = power
@@ -162,9 +175,9 @@ struct DevicePresentation {
         }
 
         // A silent tile's bottom-right is the moment it went quiet, so the two
-        // halves of the tile agree: "no contact since 14:32" over "14:32".
-        statusText = stale
-            ? Self.clock(status.lastSeen)
+        // halves of the tile agree: "silent since 14:32" over "14:32".
+        statusText = silent
+            ? Self.clock(silentAt)
             : Self.statusText(status: status, now: now)
     }
 
@@ -183,7 +196,8 @@ struct DevicePresentation {
     /// - Discharging: `4:19` (h:mm from `timeToEmpty`), `—` only when that is
     ///   unknown.
     ///
-    /// A stale device gets its age appended as `· 12 min` in every case.
+    /// A silent device gets the length of the silence appended as `· 12 min`
+    /// in every case.
     private static func timeLine(status: DeviceStatus, now: Date, age: TimeInterval?) -> String {
         var text = statusText(status: status, now: now) ?? emDash
         if let age {
@@ -288,8 +302,9 @@ struct DevicePresentation {
         String(localized: "no data", comment: "Widget: this device has never been seen.")
     }
 
-    /// `no contact since 14:32` — a device that has gone quiet for longer than
-    /// `stalenessWindow`. The time, not the age: "since 14:32" is checkable
+    /// `silent since 14:32` — a device we have been failing to reach for longer
+    /// than `DeviceStatus.silenceWindow`, timed from the first of those
+    /// failures. The time, not the age: "since 14:32" is checkable
     /// against a clock and "12 min" goes stale the moment it is drawn.
     static func noContactText(_ date: Date) -> String {
         String(

@@ -21,6 +21,10 @@ public struct DeviceStatus: Sendable, Codable, Equatable {
     public var lastSeen: Date
     /// True when `lastSeen` is older than the monitor's staleness window, i.e.
     /// we are showing the last thing we know rather than something current.
+    ///
+    /// Kept for `tandemctl` and for source compatibility; **no UI keys off it
+    /// any more**. Old data is not a fault (see `unreachableSince`), and a
+    /// badge that fired on age alone fired nearly always.
     public var isStale: Bool
     /// Seconds since the last **full** reading, when the newest reading is
     /// partial (NOTES.md §13).
@@ -34,8 +38,48 @@ public struct DeviceStatus: Sendable, Codable, Equatable {
     /// reading is still being shown. `nil` on a healthy status.
     public var error: MonitorError?
 
+    /// When the **first** failed read of the current run of failures happened,
+    /// or `nil` while the last read succeeded.
+    ///
+    /// This is the only honest measure of "we have lost the device": it is set
+    /// on the first failure after a success, kept unchanged across every
+    /// further failure, and cleared the moment any read succeeds — full or
+    /// partial. It is deliberately *not* `lastSeen`. A reading is allowed to be
+    /// old: the phone is polled every 2–5 minutes when somebody is looking and
+    /// not at all while the display sleeps (NOTES.md §14), so age alone means
+    /// only "nobody has needed a newer number", never "something is wrong".
+    /// While the activity level is `.hidden` nothing is attempted, so nothing
+    /// here changes either.
+    public var unreachableSince: Date?
+    /// How many reads in a row have failed since the last success. Zero on a
+    /// healthy status. Decodes as `0` from a snapshot written before it existed.
+    public var failedAttempts: Int
+
     /// True when the newest reading came from the degraded tier.
     public var isPartial: Bool { reading.isPartial }
+
+    /// A device is **silent** once we have been trying and failing for
+    /// `silenceWindow`, over at least `silenceAttempts` attempts.
+    ///
+    /// Both halves matter. The window alone would fire on a single failure
+    /// followed by a long `.hidden` stretch in which nothing was tried; the
+    /// attempt count alone would fire on the ordinary Wi-Fi flapping of
+    /// NOTES.md §5, where two failures a minute apart are a normal Tuesday.
+    /// Together they mean what the badge claims: the device has been asked
+    /// repeatedly, over ten minutes, and has not answered once.
+    public static let silenceWindow: TimeInterval = 10 * 60
+    /// The least number of consecutive failures that can make a device silent.
+    public static let silenceAttempts = 2
+
+    /// Whether to badge, dim and say "silent since …" for this device.
+    ///
+    /// Pure: no clock of its own, no monitor, no view — `now` is handed in, so
+    /// the widget's pre-rendered per-minute entries and the popover's
+    /// `TimelineView` tick both evaluate it against their own date.
+    public func isSilent(now: Date = Date()) -> Bool {
+        guard failedAttempts >= Self.silenceAttempts, let unreachableSince else { return false }
+        return now.timeIntervalSince(unreachableSince) > Self.silenceWindow
+    }
 
     public init(
         reading: BatteryReading,
@@ -46,7 +90,9 @@ public struct DeviceStatus: Sendable, Codable, Equatable {
         isStale: Bool = false,
         detailAge: TimeInterval? = nil,
         error: MonitorError? = nil,
-        etaTo80At: Date? = nil
+        etaTo80At: Date? = nil,
+        unreachableSince: Date? = nil,
+        failedAttempts: Int = 0
     ) {
         self.reading = reading
         self.etaTo80 = etaTo80
@@ -61,6 +107,8 @@ public struct DeviceStatus: Sendable, Codable, Equatable {
         self.isStale = isStale
         self.detailAge = detailAge
         self.error = error
+        self.unreachableSince = unreachableSince
+        self.failedAttempts = failedAttempts
     }
 
     public init(
@@ -69,7 +117,9 @@ public struct DeviceStatus: Sendable, Codable, Equatable {
         lastSeen: Date,
         isStale: Bool = false,
         detailAge: TimeInterval? = nil,
-        error: MonitorError? = nil
+        error: MonitorError? = nil,
+        unreachableSince: Date? = nil,
+        failedAttempts: Int = 0
     ) {
         self.init(
             reading: reading,
@@ -79,7 +129,9 @@ public struct DeviceStatus: Sendable, Codable, Equatable {
             lastSeen: lastSeen,
             isStale: isStale,
             detailAge: detailAge,
-            error: error
+            error: error,
+            unreachableSince: unreachableSince,
+            failedAttempts: failedAttempts
         )
     }
 
@@ -103,6 +155,7 @@ public struct DeviceStatus: Sendable, Codable, Equatable {
         case reading, etaTo80, timeToEmpty, chargingWatts, lastSeen
         case isStale = "stale"
         case detailAge, error, etaTo80At
+        case unreachableSince, failedAttempts
     }
 
     /// Hand-written only so a snapshot written before `etaTo80At` existed still
@@ -118,6 +171,12 @@ public struct DeviceStatus: Sendable, Codable, Equatable {
         isStale = try container.decodeIfPresent(Bool.self, forKey: .isStale) ?? false
         detailAge = try container.decodeIfPresent(TimeInterval.self, forKey: .detailAge)
         error = try container.decodeIfPresent(MonitorError.self, forKey: .error)
+        // Absent from every snapshot written before the silence rule existed,
+        // where "we have not failed" is exactly the right reading of silence.
+        unreachableSince = try container.decodeIfPresent(Date.self, forKey: .unreachableSince)
+        failedAttempts = try container.decodeIfPresent(Int.self, forKey: .failedAttempts) ?? 0
+        // Last, and after every other property: the fallback closure captures
+        // `self` to reach `lastSeen`, so nothing may still be uninitialised.
         etaTo80At = try container.decodeIfPresent(Date.self, forKey: .etaTo80At)
             ?? etaTo80.map { lastSeen.addingTimeInterval($0.rounded()) }
     }

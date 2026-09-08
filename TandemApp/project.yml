@@ -42,8 +42,8 @@ targets:
         INFOPLIST_KEY_LSUIElement: "YES"
         INFOPLIST_KEY_CFBundleDisplayName: "Tandem"
         INFOPLIST_KEY_NSHumanReadableCopyright: ""
-        MARKETING_VERSION: "1.3.2"
-        CURRENT_PROJECT_VERSION: "9"
+        MARKETING_VERSION: "1.3.3"
+        CURRENT_PROJECT_VERSION: "10"
         # No /opt/homebrew/lib here any more: tools/bundle-dylibs.sh copies the
         # libimobiledevice/OpenSSL chain into Contents/Frameworks and rewrites
         # every install name to @rpath, so the bundle's own Frameworks
@@ -118,8 +118,8 @@ targets:
         ENABLE_HARDENED_RUNTIME: "NO"
         GENERATE_INFOPLIST_FILE: "NO"
         INFOPLIST_FILE: Sources/TandemWidget/Info.plist
-        MARKETING_VERSION: "1.3.2"
-        CURRENT_PROJECT_VERSION: "9"
+        MARKETING_VERSION: "1.3.3"
+        CURRENT_PROJECT_VERSION: "10"
         SKIP_INSTALL: "YES"
         SWIFT_EMIT_LOC_STRINGS: "YES"
         # The widget gallery's sidebar takes its icon from the *extension*

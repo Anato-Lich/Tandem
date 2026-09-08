@@ -21,7 +21,7 @@ import SwiftUI
 /// | charging | `62/140 W`, amber | `80 % · 27 min` |
 /// | on battery | `−13 W` / `on battery` | `4:19` |
 /// | on the wall, holding | 🔌 `13/140 W`, blue | `charged` / `on hold` |
-/// | silent > 5 min | `no contact since 14:32` | `14:32` |
+/// | silent > 10 min | `silent since 14:32` | `14:32` |
 /// | never seen | `no data` | — |
 ///
 /// It lives on its own rather than inside `MediumWidgetView` because the large
@@ -79,7 +79,7 @@ struct DeviceTile: View {
         .frame(width: Self.ringSize, height: Self.ringSize)
         .opacity(device.dimming)
         .overlay(alignment: .topTrailing) {
-            if device.showsStaleBadge {
+            if device.showsSilentBadge {
                 RingBadge(symbol: "exclamationmark", diameter: 16).offset(x: 1, y: -1)
             } else if device.isCharging {
                 RingBadge(symbol: "bolt.fill", diameter: 16).offset(x: 1, y: -1)
@@ -103,7 +103,7 @@ struct DeviceTile: View {
                 .monospacedDigit()
                 .foregroundStyle(Self.style(device.topKind))
                 .lineLimit(1)
-                // Only "no contact since 14:32" ever needs to shrink; every
+                // Only "silent since 14:32" ever needs to shrink; every
                 // power line fits at full size beside the ring, and the user
                 // wants those read at the size the mock-up says.
                 .minimumScaleFactor(device.topKind == .plain ? 0.6 : 1.0)

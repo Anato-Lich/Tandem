@@ -5,8 +5,9 @@ import BatteryCore
 /// overdue iPhone, an orange warning glyph in its place), a right-aligned
 /// percent, a 6 pt level-colored bar, and three fixed telemetry columns
 /// (system draw, adapter, time-to-80%/time-left) that never wrap. Falls back to a
-/// "not reachable" row when the device has never been seen at all. Staleness
-/// is otherwise silent — no "updated N ago" text anywhere in the row.
+/// "not reachable" row when the device has never been seen at all. Age is
+/// never rendered as a fault — no "updated N ago" text anywhere in the row, and
+/// nothing dims because a reading is old (see `DeviceStatus.isSilent(now:)`).
 struct DeviceRowView: View {
     let kind: DeviceKind
     let status: DeviceStatus?
@@ -24,10 +25,12 @@ struct DeviceRowView: View {
     /// mock's 28 pt).
     private static let contentIndent: CGFloat = 28
 
-    /// How old the iPhone's `lastSeen` may get before the header swaps its
-    /// bolt for a warning glyph and "Resync" unlocks in the footer menu.
-    /// Matches `TandemModel.phoneNeedsResync`.
-    static let phoneAttentionThreshold: TimeInterval = 300
+    // What used to be `phoneAttentionThreshold` (5 minutes of `lastSeen` age)
+    // is gone. The phone is polled every 2–5 minutes at best and not at all
+    // while the display sleeps (NOTES.md §14), so that glyph was lit most of
+    // the time on a phone that was perfectly fine. The rule is now
+    // `DeviceStatus.isSilent(now:)` — ten minutes of *failed reads*, at least
+    // two of them — and it lives in BatteryCore so the widget agrees with us.
 
     var body: some View {
         if let status {
@@ -59,7 +62,7 @@ struct DeviceRowView: View {
             .padding(.leading, Self.contentIndent)
             .opacity(detailsAreStale ? 0.55 : 1.0)
         }
-        .opacity(status.isStale ? 0.45 : 1.0)
+        .opacity(status.isSilent(now: now) ? 0.45 : 1.0)
     }
 
     /// Looks `error.localizedKey` (e.g. `"tandem.error.unreachable"`) up in
@@ -71,8 +74,10 @@ struct DeviceRowView: View {
         String(localized: String.LocalizationValue(error.localizedKey))
     }
 
-    /// Hover text for the overdue glyph: when the phone last answered, how
-    /// long ago that was, and the last error if the monitor recorded one.
+    /// Hover text for the silent glyph: when the phone last answered, how long
+    /// ago that was, and the last error if the monitor recorded one. `lastSeen`
+    /// still belongs here — it is the one place age is genuinely the answer to
+    /// the question being asked.
     private func attentionTooltip(_ status: DeviceStatus) -> String {
         let clock = status.lastSeen.formatted(date: .omitted, time: .shortened)
         let ago = StatusFormatter.shortDuration(now.timeIntervalSince(status.lastSeen))
@@ -98,7 +103,7 @@ struct DeviceRowView: View {
             Text(status.reading.name)
                 .lineLimit(1)
                 .truncationMode(.tail)
-            if kind == .iphone, phoneNeedsAttention(status) {
+            if kind == .iphone, status.isSilent(now: now) {
                 warningGlyph.help(attentionTooltip(status))
             } else if status.reading.isCharging {
                 Image(systemName: "bolt.fill")
@@ -110,13 +115,6 @@ struct DeviceRowView: View {
                 .monospacedDigit()
                 .fontWeight(.semibold)
         }
-    }
-
-    /// True once the iPhone's `lastSeen` is older than
-    /// `phoneAttentionThreshold` (5 min) — swaps the header's bolt for a
-    /// warning glyph, in place of any freshness text.
-    private func phoneNeedsAttention(_ status: DeviceStatus) -> Bool {
-        now.timeIntervalSince(status.lastSeen) > Self.phoneAttentionThreshold
     }
 
     private var warningGlyph: some View {

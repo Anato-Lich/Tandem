@@ -47,19 +47,26 @@ opens the summary window (below), scrolled/tabbed to that device. The
 footer's `ellipsis.circle` menu on the right holds, top to bottom: "Summary…"
 (opens the summary window with nothing highlighted), a "Summary layout"
 submenu (a `Picker` between the two layouts, see "Summary window" below), a
-divider, "Resync" — which appears only while the iPhone hasn't been seen in
-over 5 minutes (or was never seen) and calls `monitor.resync()` (not just
-`requestRefresh()`: it also forgets the cached address and rediscovers, see
-BatteryCore NOTES.md §16.1) — a divider, "Launch at login" (reflecting
+divider, "Resync" — always offered, because a manual rediscovery is useful
+long before the app is willing to call the phone silent; it calls
+`monitor.resync()` (not just `requestRefresh()`: it also forgets the cached
+address and rediscovers, see BatteryCore NOTES.md §16.1) — a divider, "Launch
+at login" (reflecting
 `SMAppService.mainApp`'s real status), a divider, and "Quit Tandem". There is
 no Settings window — poll cadence, transport preference and the direct Wi-Fi
 client are fixed defaults (see "What v1 does" below) — and no separate
 Refresh button, since opening the popover already boosts polling and triggers
-an immediate refresh, and an overdue iPhone gets the menu's "Resync" instead.
-Freshness is otherwise silent: there's no "Updated … ago" text anywhere in
-the popover — a row that hasn't reported in a while just dims, and an iPhone
-overdue by more than 5 minutes swaps its charging bolt for an orange
-`exclamationmark.circle.fill` (tooltip: the last error, if any).
+an immediate refresh, and the menu's "Resync" is always there.
+
+**Age is never a fault.** There is no "Updated … ago" text anywhere in the
+popover, and nothing dims because a reading is old: the phone is polled every
+2–5 minutes at best and not at all while the display sleeps, so an old number
+is the energy policy working (BatteryCore NOTES.md §14). A row only dims to
+45 %, and an iPhone only swaps its charging bolt for an orange
+`exclamationmark.circle.fill`, once `DeviceStatus.isSilent(now:)` is true —
+**we have been failing to read it for over ten minutes, across at least two
+attempts** (NOTES.md §14.8). The glyph's tooltip still says when the phone was
+last seen and how long ago that was, plus the last error if there is one.
 
 Quit via the footer menu's "Quit Tandem", `osascript -e 'quit app "Tandem"'`,
 or `pkill -x Tandem`.
@@ -182,7 +189,7 @@ them (`docs/design/widget/StatesMac.dc.html`, `StatesPhone.dc.html`;
 | charging | `62/140 W`, amber semibold | `80 % · 27 min` (`80 % · —` before the estimator has an ETA, `charged` once past 80 %) |
 | on battery | `−13 W` on the Mac, `on battery` on the phone, both secondary | `4:19` |
 | plugged in, not charging | `powerplug` glyph + `13/140 W` in blue semibold (an iPhone left on the wire past 100 % reads `45 W`) | `charged` at/above 80 % or full, else `on hold` |
-| quiet for more than 5 minutes | `no contact since 14:32` | `14:32` |
+| silent (failing for > 10 min, ≥ 2 attempts) | `silent since 14:32` | `14:32` |
 | never seen | `no data` | *(nothing)* |
 
 The watts are always the honest "in / available" pair and never a measurement of
@@ -196,12 +203,17 @@ columns of the day strip), and a ring that turned orange at 49 % read as
 (`StatColumns.swift`) for the popover bars and `summaryLevelColor`
 (`SummaryDesign.swift`) for the summary rings.
 
-A device whose `lastSeen` is more than 5 minutes old — the same silence the
-popover's Resync offer is keyed to — is drawn at 45 % opacity *except* for its
+A **silent** device — one we have been trying and failing to read for over ten
+minutes, over at least two attempts (`DeviceStatus.isSilent(now:)`, the same
+rule the popover row uses) — is drawn at 45 % opacity *except* for its
 exclamation badge, which is the one mark on the widget whose job is to be
-noticed. A device that has never been seen has no level at all: the percent is
-an em dash and the ring is drawn as a bare track, never `0 %` with a dot of red.
-`min`, `charged`, `on hold`, `on battery`, `no data` and `no contact since %@`
+noticed. The clock in `silent since 14:32` is `unreachableSince`, the moment
+the failures started, not `lastSeen`: a stale reading on its own never dims
+anything, because the phone is deliberately polled every 2–5 minutes and not at
+all while the display sleeps (NOTES.md §14.8). A device that has never been seen
+has no level at all: the percent is an em dash and the ring is drawn as a bare
+track, never `0 %` with a dot of red.
+`min`, `charged`, `on hold`, `on battery`, `no data` and `silent since %@`
 are the translated tokens (`Sources/TandemWidget/Localizable.xcstrings`,
 en + ru); everything else on the widget is a number.
 
@@ -273,9 +285,9 @@ decode-compatible struct that `DeviceStatus` never renders.
 
 Timeline: **one entry a minute for the next fifteen minutes**, policy
 `.after(now + 15 min)`. All fifteen are built from the same snapshot — the
-countdown to 80 %, the staleness dimming and the `· 12 min` age are all
+countdown to 80 %, the silence dimming and the `· 12 min` age are all
 computed from the entry's own date against absolute times in the snapshot
-(`DeviceStatus.etaTo80At`, `lastSeen`), so the widget ticks for a quarter of an
+(`DeviceStatus.etaTo80At`, `unreachableSince`), so the widget ticks for a quarter of an
 hour without anything polling the phone. Each `getTimeline` also drops the
 visibility breadcrumb described under "Energy policy" below.
 
@@ -387,10 +399,12 @@ automated and has to be done by hand.
   is why a plugged-in Mac no longer reads "0 W": battery current is 0 there
   and says nothing about consumption (NOTES.md §6, §9). A partial (degraded-tier) or aging-detail phone reading
   (`DeviceStatus.detailAge` set and > 120 s) dims just those three columns to
-  55% opacity — silently, no text (NOTES.md §13.2). Stale rows (any device)
-  dim to 45% opacity, also silently. Freshness otherwise never gets a text
-  line: an iPhone whose `lastSeen` is over 5 minutes old (or that has never
-  been seen) instead swaps its header bolt for an orange
+  55% opacity — silently, no text (NOTES.md §13.2). A **silent** row (any
+  device: `DeviceStatus.isSilent(now:)` — failing for over ten minutes across
+  at least two attempts) dims to 45% opacity, also silently; an old reading on
+  its own never dims anything, because polling is deliberately sparse
+  (NOTES.md §14.8). Freshness never gets a text line: an iPhone that is silent
+  by that rule (or that has never been seen) instead swaps its header bolt for an orange
   `exclamationmark.circle.fill`, with `.help()` showing
   `phoneError.localizedKey` (looked up in the String Catalog) when there is
   one; a phone that has never been seen at all still falls back to the
@@ -405,8 +419,9 @@ automated and has to be done by hand.
   polling behind it. Footer: a small borderless `ellipsis.circle` menu,
   right-aligned — "Summary…" (opens the summary window with nothing
   highlighted), a "Summary layout" submenu (picker between the two layouts,
-  see "Summary window" above), a divider, "Resync" (shown only while the
-  iPhone is in that overdue state; calls `monitor.resync()`, which forgets the
+  see "Summary window" above), a divider, "Resync" (always shown — a manual
+  rediscovery is useful long before the silence rule fires; calls
+  `monitor.resync()`, which forgets the
   cached address, drops any kept-alive session and rediscovers before reading
   — BatteryCore NOTES.md §16.1 — not just a fresh poll), a divider, "Launch at
   login" (bound live to `SMAppService.mainApp.status == .enabled`), a

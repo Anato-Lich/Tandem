@@ -410,13 +410,17 @@ final class TandemModel {
         await monitor.setActivity(activityLevel)
     }
 
-    /// True while the iPhone hasn't been seen in over 5 minutes, or has never
-    /// been seen at all — the footer menu's "Resync" item is shown only while
-    /// this is true. Matches `DeviceRowView.phoneAttentionThreshold`, which
-    /// drives the same cutoff for the header's warning glyph.
+    /// True while the iPhone has been failing to answer for over ten minutes
+    /// across at least two attempts (`DeviceStatus.isSilent(now:)`), or has
+    /// never been seen at all — the same rule that lights the row's warning
+    /// glyph, so the two can never disagree.
+    ///
+    /// The footer's "Resync" item is offered unconditionally and does not read
+    /// this; a manual rediscovery is useful long before the app is prepared to
+    /// call the phone silent.
     var phoneNeedsResync: Bool {
         guard let phone = snapshot.phone else { return true }
-        return Date().timeIntervalSince(phone.lastSeen) > DeviceRowView.phoneAttentionThreshold
+        return phone.isSilent(now: Date())
     }
 
     /// The activity level the monitor is actually scheduling at, for the

@@ -1162,6 +1162,49 @@ desktop for a couple of hours and a few popovers lands near the ~300 target;
 the exact number is whatever `--stats` says on the day, which is why it is
 measured rather than argued about.
 
+### 14.8 The silent rule — old data is not a fault
+
+The cadence above has a corollary the UI got wrong for a long time. If the
+phone is dialled every 2 min with a widget on screen, every 5 min from the menu
+bar and **never** while the display sleeps, then a reading that is twenty
+minutes old is this policy working exactly as designed. The widget nevertheless
+flagged anything older than five minutes — dimmed tile, orange `!`, "silent
+since 18:24" — so between §5's Wi-Fi flapping, the 60 → 600 s backoff and any
+locked screen, the warning was lit most of the time on a phone that was fine.
+
+"Silent" now means **we have been trying and failing**, which is a different
+question and the only one worth a badge:
+
+* `DeviceStatus.unreachableSince: Date?` — the moment of the first failed read
+  after the last success. Kept unchanged across every further failure (the badge
+  says when the phone went quiet, not when we last noticed it still was), and
+  cleared to `nil` by any read that succeeds, **including a partial one**: a
+  degraded-tier answer (§13.2) is still the phone answering.
+* `DeviceStatus.failedAttempts: Int` — consecutive failures since that success.
+  Deliberately not `TandemMonitor.phoneFailures`, which is the backoff ladder
+  and is zeroed by any event worth re-dialling on (§14.2); a network path change
+  is a reason to try again, not a reason to claim the phone answered.
+* `DeviceStatus.isSilent(now:)` is the whole rule, and it is pure — the clock is
+  handed in, so the widget's pre-rendered per-minute entries (§14.5) and the
+  popover's `TimelineView` tick both evaluate it against their own date:
+
+  > silent ⇔ `unreachableSince` is more than **10 minutes** old **and**
+  > `failedAttempts >= 2`.
+
+  Both halves are load-bearing. The window alone would fire on one failure
+  followed by a long `.hidden` stretch in which nothing was attempted; the
+  attempt count alone would fire on the ordinary flapping of §5, where two
+  failures a minute apart are a normal Tuesday.
+
+While the level is `.hidden` nothing is read, so nothing here moves — a phone
+cannot go silent while nobody is asking it anything. Below the threshold the
+row and the tile render the last reading normally, at full opacity, with no
+badge, whatever `lastSeen` says. `DeviceStatus.isStale` survives for `tandemctl`
+and for source compatibility, and no UI keys off it any more. Both fields decode
+as `nil`/`0` from snapshots written before they existed, so an old file reads as
+"we have not failed", which is the right answer for a file nobody is failing to
+write.
+
 The costs, stated plainly: a phone unplugged while the screen is locked is not
 noticed until the screen comes back (the marker cannot help — `.hidden` wins),
 and a `.background` phone reading can be five minutes old when the popover

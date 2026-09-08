@@ -10,7 +10,7 @@ struct PopoverContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // One tick a minute, so the "to 80 %" countdown and the overdue
+            // One tick a minute, so the "to 80 %" countdown and the silent
             // glyph move on their own. This is the whole point of
             // `DeviceStatus.etaTo80At`: the popover stays live while the phone
             // is dialled no more often than the activity level allows.
@@ -97,7 +97,8 @@ struct FooterView: View {
                 }
                 Divider()
                 // Always offered: a manual rediscovery is useful long before
-                // the five-minute silence that flags the row.
+                // the ten minutes of failed reads that flag the row
+                // (`DeviceStatus.isSilent(now:)`).
                 Button(model.isResyncing ? String(localized: "Resyncing…") : String(localized: "Resync")) {
                     model.resync()
                 }

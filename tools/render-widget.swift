@@ -106,7 +106,11 @@ func state(
         etaTo80: etaTo80,
         timeToEmpty: timeToEmpty,
         chargingWatts: charging ? powerIn : nil,
-        lastSeen: now.addingTimeInterval(-silentFor)
+        lastSeen: now.addingTimeInterval(-silentFor),
+        // Silence is a run of *failed reads*, not an old reading, so the sample
+        // has to carry both halves of the rule for the tile to draw it.
+        unreachableSince: silentFor > 0 ? now.addingTimeInterval(-silentFor) : nil,
+        failedAttempts: silentFor > 0 ? DeviceStatus.silenceAttempts : 0
     )
     return DevicePresentation(kind: kind, status: status, now: now)
 }
@@ -164,10 +168,11 @@ struct StatesSheet: View {
         MediumWidgetView(
             mac: state(kind: .mac, percent: 32, load: 13,
                        timeToEmpty: 4 * 3600 + 19 * 60, now: now),
-            // Ten minutes of silence: past the five-minute window, so the tile
-            // dims, takes the exclamation mark and says when it last spoke.
+            // Eleven minutes of failed reads: past the ten-minute window and
+            // over the two-attempt floor, so the tile dims, takes the
+            // exclamation mark and says when the silence began.
             phone: state(kind: .iphone, percent: 38, timeToEmpty: 13 * 3600 + 21 * 60,
-                         silentFor: 10 * 60, now: now),
+                         silentFor: 11 * 60, now: now),
             bars: DayBars(mac: columns(macDay, "mmmmmmbbbbbb"),
                           phone: columns(phoneDay, "ccbbbbbbbbbb"))
         )

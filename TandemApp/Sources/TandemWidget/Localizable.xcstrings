@@ -145,24 +145,6 @@
         }
       }
     },
-    "no contact since %@": {
-      "extractionState": "manual",
-      "comment": "Widget: the device stopped reporting; %@ is a short time of day.",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "no contact since %@"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "нет связи с %@"
-          }
-        }
-      }
-    },
     "no data": {
       "extractionState": "manual",
       "comment": "Widget: this device has never been seen.",
@@ -236,11 +218,19 @@
       }
     },
     "silent since %@": {
+      "comment": "Widget: we have been failing to reach the device; %@ is a short time of day.",
+      "extractionState": "manual",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
             "value": "тишина с %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "silent since %@"
           }
         }
       }
