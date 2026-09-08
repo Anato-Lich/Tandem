@@ -85,7 +85,7 @@ A third file, `history-summary.json`, is written next to both copies (see
 
 `tandem://summary` opens a non-resizable `Window` scene (`SummaryWindowView`)
 with both devices' recorded history — battery health, last charge session,
-today's stats and a 24 h chart, from `TandemModel.history` (the app's own
+today's stats and the 24 h chart card, from `TandemModel.history` (the app's own
 `HistoryStore`, reloaded every 60 s while the window is open) plus the live
 snapshot for the header numbers. Three entry points reach it, all through
 `TandemModel.requestSummary(device:)`: a popover row (that device
@@ -96,13 +96,39 @@ tile tap, which arrives as the URL `tandem://summary[/mac|/iphone]` handled by
 Two layouts, picked from the footer's "Summary layout" submenu and remembered
 in `@AppStorage("summaryLayout")` (`SummaryLayout`, `SummaryWindow.swift`):
 
-- **Two columns** (`SummaryColumnsView`, 924×640) — both devices side by side.
-- **Tabs** (`SummaryTabsView`, 480×640) — one device at a time behind a tab
+- **Two columns** (`SummaryColumnsView`, 924×780) — both devices side by side.
+- **Tabs** (`SummaryTabsView`, 480×780) — one device at a time behind a tab
   bar.
+
+Both grew from 640 pt tall when the 24 h card became two plots
+(`SummaryChartCard`); nothing above the card moved.
 
 The window resizes to the chosen layout's fixed size; `defaultSize` in
 `TandemApp.swift` and the `WindowConfigurator`'s explicit `setContentSize` both
 follow `SummaryLayout.size`.
+
+### The 24 h card
+
+One card, two plots, one shared time axis (`SummaryChartCard` in
+`SummaryDesign.swift`; the approved design is `docs/design/chart/ChartB2.dc.html`):
+
+- **Charge · 24 hours** — one `BarMark` per half-hour bin of
+  `DeviceHistory.bins24h` (48 of them, the last ending at *now*), coloured by
+  what the device was doing for most of that half hour: green on the battery,
+  amber charging, blue plugged in and holding. The newest bar is at full
+  opacity and the rest at 0.85, the grid is a solid hairline at 0 / 50 / 100
+  with the numbers on the **left**, and a dashed rule marks 80 %. No time
+  labels here.
+- **Power** — `powerInW` per bin as a bar (amber while charging, a thin blue
+  one while the adapter is merely carrying the machine, nothing at all on
+  battery) under the purple `systemLoadW` line, on a y axis that runs to a
+  round ceiling above whichever of the two is taller. The **time labels live
+  here only**: whole clock hours six apart, counted back from now.
+
+Colour in these two plots means *state*, never level — the one place in the app
+where it does not follow the green/red-below-20 % rule. An iPhone cannot produce the `mains`
+state and needs no separate path. With fewer than two bins carrying a percent
+the card draws its axes and one line, "Collecting history…".
 
 **Item 1a — a tile tap while the window is already open does not re-open or
 reposition it.** `SummaryWindowView.isOnScreen` checks `NSApp.windows` before
@@ -127,12 +153,14 @@ extension embedded in `Tandem.app/Contents/PlugIns/`. It offers three families
   `iphone` + percent + time on the right.
 - **Medium** — two tiles either side of a hairline, modelled on the system
   Batteries widget and 14 pt inside the widget edge (`MediumWidgetView`, which
-  cancels WidgetKit's own content margins to get there). Top row: a 60 pt ring,
-  stroke 6.5, with the device glyph inside and one 13 pt secondary line beside
-  it — the power line. Bottom row, pinned down by a `Spacer`: the percent at
-  34 pt semibold tabular, and baseline-aligned with it at the right, one 13 pt
-  status. An orange badge rides the ring's top-right: `bolt.fill` while
-  charging, `exclamationmark` when the reading has gone stale.
+  cancels WidgetKit's own content margins to get there). Three bands
+  (`DeviceTile`, design `docs/design/widget/MediumA.dc.html`): a 52 pt ring,
+  stroke 6, device glyph at 22 pt, with one 15 pt line beside it; then the
+  device's last 24 hours as twelve two-hour columns across the tile's whole
+  width (`DayBarsView`, 36 pt tall, 2 pt gaps); then the percent at 30 pt
+  semibold tabular with one 12.5 pt status baseline-aligned to its right. An
+  orange badge rides the ring's top-right: `bolt.fill` while charging,
+  `exclamationmark` when the device has gone quiet — never both.
 - **Large** (`LargeWidgetView`) — the medium family's two tiles verbatim across
   the top, then one card below with both devices' last 24 hours on the same
   axes as the summary window's chart (last 24 h ending at *now*, values on the
@@ -145,27 +173,57 @@ extension embedded in `Tandem.app/Contents/PlugIns/`. It offers three families
   its axes with nothing plotted rather than stale data pretending to be
   current.
 
-The power line is one compact "in / available" string and nothing else:
-`62/140 W` charging off a 140 W brick, `36/45 W` on the phone, `−13 W` on
-battery (whole watts — the Mac only), a `powerplug` glyph plus `140 W` when
-plugged in but not charging (`0/140 W` would be a measurement of nothing), and
-nothing at all for an iPhone on battery. The status slot always holds exactly
-one thing: `80 % · 14 min` while charging (`80 % · —` before the estimator has
-an ETA, `charged` once past 80 %), `charged` / `on hold` while plugged in and
-not charging, `4:19` on battery.
+The tile's two text slots are one state matrix, and every state fills both of
+them (`docs/design/widget/StatesMac.dc.html`, `StatesPhone.dc.html`;
+`DevicePresentation` decides, `DeviceTile` draws):
 
-Ring colour is a function of level only — red below 20 %, orange below 50 %,
-green above. Charging is signalled by the bolt, never by the colour. A device
-whose `lastSeen` is more than 10 minutes old is drawn at 45 % opacity, badged
-with the exclamation mark and has its age appended to the status
-(`4:19 · 12 min`). A device that has never been seen has no level at all: the
-percent is an em dash and the ring is drawn as a bare track, never `0 %` with a
-dot of red. `min`, `charged` and `on hold` are the only translated tokens
-(`Sources/TandemWidget/Localizable.xcstrings`, en + ru); everything else on the
-widget is a number.
+| state | beside the ring | bottom right |
+| --- | --- | --- |
+| charging | `62/140 W`, amber semibold | `80 % · 27 min` (`80 % · —` before the estimator has an ETA, `charged` once past 80 %) |
+| on battery | `−13 W` on the Mac, `on battery` on the phone, both secondary | `4:19` |
+| plugged in, not charging | `powerplug` glyph + `13/140 W` in blue semibold (an iPhone left on the wire past 100 % reads `45 W`) | `charged` at/above 80 % or full, else `on hold` |
+| quiet for more than 5 minutes | `no contact since 14:32` | `14:32` |
+| never seen | `no data` | *(nothing)* |
+
+The watts are always the honest "in / available" pair and never a measurement of
+nothing: a phone's discharge wattage is deliberately not published, and a Mac
+whose reading came back partial says `on battery` rather than `0 W`.
+
+Ring colour is a function of level only — **green, and red below 20 %**. Two
+bands, not three: orange belongs to charging (the bolt, the watts, the amber
+columns of the day strip), and a ring that turned orange at 49 % read as
+"plugged in" when it was not. The same rule is `batteryLevelColor`
+(`StatColumns.swift`) for the popover bars and `summaryLevelColor`
+(`SummaryDesign.swift`) for the summary rings.
+
+A device whose `lastSeen` is more than 5 minutes old — the same silence the
+popover's Resync offer is keyed to — is drawn at 45 % opacity *except* for its
+exclamation badge, which is the one mark on the widget whose job is to be
+noticed. A device that has never been seen has no level at all: the percent is
+an em dash and the ring is drawn as a bare track, never `0 %` with a dot of red.
+`min`, `charged`, `on hold`, `on battery`, `no data` and `no contact since %@`
+are the translated tokens (`Sources/TandemWidget/Localizable.xcstrings`,
+en + ru); everything else on the widget is a number.
+
+The day strip's twelve columns are `DeviceHistory.bins24h` folded four half
+hours at a time (`DayBars.fold`): each column takes the last level known inside
+its two hours and the state those two hours spent most of their time in, which
+at equal bin widths is a plain majority of the four with a tie going to the
+newest. Green on the pack, amber charging, blue on the wall and holding — the
+summary window's own three colours by number
+(`BarPalette`/`SummaryPalette`) rather than system colours, because three states
+have to stay apart at 10 pt wide. The newest column is drawn at full strength
+and the rest at 70 %; a column with no reading at all is a 2 pt stub. With no
+`history-summary.json`, or one older than `HistorySummary.freshnessWindow`, the
+strip is an empty track instead — the same test the large family's chart makes.
+The medium family folds the file once per timeline and copies twelve columns
+per device into its fifteen pre-rendered entries, rather than fifteen copies of
+the whole summary.
 
 `docs/widget-small.png`, `docs/widget-small-charging.png`,
-`docs/widget-medium.png`, `docs/widget-medium-charging.png` and
+`docs/widget-medium.png`, `docs/widget-medium-charging.png`,
+`docs/widget-medium-states.png` (the four combinations from
+`docs/design/widget/Combos.dc.html`, rendered from the real view) and
 `docs/widget-large.png` are rendered from these very sources by
 `tools/render-widget.swift` (the header comment has the `swiftc` line). They
 show the widget *content* only — the translucent material a placed widget

@@ -33,6 +33,17 @@ public struct HistoryReading: Sendable, Codable, Equatable {
     /// watt or two every second on an idle Mac, and letting it break the skip
     /// rule would turn a quiet week's ~860 rows back into ~10 000.
     public var systemLoadW: Double?
+    /// What the wall was putting into the machine at this instant
+    /// (`BatteryReading.systemPowerInW`, `PowerTelemetryData.SystemPowerIn`),
+    /// unsigned. Present whenever the device is **plugged in — charging or
+    /// not** — which is exactly what makes it the honest input for the power
+    /// chart: a Mac held at 90 % on a 140 W brick draws 13 W from the wall and
+    /// charges at nothing at all. `nil` on battery and on any device that
+    /// reports no telemetry. Schema v5.
+    ///
+    /// Like `systemLoadW`, deliberately **not** part of `isMateriallySame`:
+    /// it moves by a watt every few seconds and would defeat the skip rule.
+    public var powerInW: Double?
     public var isPartial: Bool
     public var transport: Transport
 
@@ -52,7 +63,8 @@ public struct HistoryReading: Sendable, Codable, Equatable {
         temperatureC: Double? = nil,
         isPartial: Bool = false,
         transport: Transport = .local,
-        systemLoadW: Double? = nil
+        systemLoadW: Double? = nil,
+        powerInW: Double? = nil
     ) {
         self.timestamp = timestamp
         self.device = device
@@ -70,6 +82,7 @@ public struct HistoryReading: Sendable, Codable, Equatable {
         self.isPartial = isPartial
         self.transport = transport
         self.systemLoadW = systemLoadW
+        self.powerInW = powerInW
     }
 }
 
@@ -112,7 +125,10 @@ extension HistoryReading {
             transport: reading.transport,
             // Already `nil` when the device reports no telemetry, so it needs
             // no "0 means unknown" rescue of its own.
-            systemLoadW: reading.systemLoadW
+            systemLoadW: reading.systemLoadW,
+            // Ditto: the parser turns `SystemPowerIn == 0` — which is what a
+            // device on battery reports — into `nil` before we ever see it.
+            powerInW: reading.systemPowerInW
         )
     }
 
@@ -288,6 +304,83 @@ public struct SeriesPoint: Sendable, Codable, Equatable {
     }
 }
 
+/// What the device was doing for most of one bin of the 24 h chart.
+///
+/// Three states, not two, because "plugged in" and "charging" are different
+/// answers and the chart is the one place that difference is visible: a Mac
+/// held at 90 % on a 140 W brick is on `mains`, taking its power from the wall
+/// and putting none of it into the pack. An iPhone never reports `mains` — it
+/// either charges or it does not — and the code path is the same either way.
+public enum HistoryBinState: String, Sendable, Codable, CaseIterable {
+    /// `external == false`: running off the pack.
+    case battery
+    /// `external && isCharging`.
+    case charging
+    /// `external && !isCharging`: on the wall, holding.
+    case mains
+}
+
+/// One half-hour bin of the summary window's 24 h chart.
+///
+/// Unlike `SeriesPoint` — which is a *reading*, at whatever uneven instant the
+/// skip rule happened to record one — a bin is a fixed slot on the clock, so
+/// bars are the same width and a gap in the data is visible as a gap rather
+/// than as a long straight line. `DeviceHistory.bins24h` holds 48 of them,
+/// oldest first, the last one ending at `now`.
+///
+/// Every value is optional-shaped the way the rest of the store is: `nil` means
+/// **unknown**, never zero (NOTES.md §15.1). A bin with no readings in it at
+/// all still carries the percent *and the state* forward from the bin before —
+/// a battery that was at 90 % on the wall half an hour ago and has not been
+/// heard from since is still at about 90 %, still on the wall — but reports no
+/// power at all, because nobody measured any.
+public struct HistoryBin: Sendable, Codable, Equatable {
+    /// The bin's left edge: a whole or half hour.
+    public var start: Date
+    /// The last reading in the bin, else the previous bin's figure carried
+    /// forward, else `nil` — nothing has been recorded yet.
+    public var percent: Int?
+    /// The state most of the bin's readings were in, weighted by time; for a
+    /// bin with no readings, the previous bin's state carried forward (a Mac
+    /// asleep on its charger is still on `.mains` at three in the morning),
+    /// and `.battery` only when nothing precedes it.
+    public var state: HistoryBinState
+    /// Mean `HistoryReading.powerInW` over the bin's readings; `nil` when none
+    /// of them carried one (every device on battery, every partial reading).
+    public var powerInW: Double?
+    /// Mean `HistoryReading.systemLoadW` over the bin's readings.
+    public var systemLoadW: Double?
+
+    public init(
+        start: Date,
+        percent: Int? = nil,
+        state: HistoryBinState = .battery,
+        powerInW: Double? = nil,
+        systemLoadW: Double? = nil
+    ) {
+        self.start = start
+        self.percent = percent
+        self.state = state
+        self.powerInW = powerInW
+        self.systemLoadW = systemLoadW
+    }
+
+    /// Lenient on purpose, like `DeviceHistory`: this type crosses a file
+    /// written by one process and read by another (NOTES.md §15.4), so a key
+    /// that is missing — or a `state` a newer build wrote and this one has
+    /// never heard of — has to decode to something sensible rather than throw
+    /// the whole summary away.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.start = try container.decode(Date.self, forKey: .start)
+        self.percent = try container.decodeIfPresent(Int.self, forKey: .percent)
+        let state = try? container.decodeIfPresent(HistoryBinState.self, forKey: .state)
+        self.state = state.flatMap { $0 } ?? .battery
+        self.powerInW = try container.decodeIfPresent(Double.self, forKey: .powerInW)
+        self.systemLoadW = try container.decodeIfPresent(Double.self, forKey: .systemLoadW)
+    }
+}
+
 /// Everything the summary view and the large widget need about one device.
 public struct DeviceHistory: Sendable, Codable, Equatable {
     public var device: String
@@ -307,6 +400,12 @@ public struct DeviceHistory: Sendable, Codable, Equatable {
     /// The last 24 h, downsampled to at most
     /// `HistoryStore.seriesPointLimit` (96) points.
     public var series: [SeriesPoint]
+    /// The last 24 h as 48 half-hour bins, oldest first, the last one ending at
+    /// `now` — what the summary window's chart draws (`HistoryStore.binCount`).
+    ///
+    /// `series` stays beside it, untouched, because the widget reads the same
+    /// file and draws the line it has always drawn.
+    public var bins24h: [HistoryBin]
     /// The last `HistoryStore.systemLoadSeriesLimit` (12) recorded values of
     /// `HistoryReading.systemLoadW`, oldest first — the summary window's
     /// sparkline beside the "System" row.
@@ -332,7 +431,8 @@ public struct DeviceHistory: Sendable, Codable, Equatable {
         today: DailyStat? = nil,
         week: [DailyStat] = [],
         series: [SeriesPoint] = [],
-        systemLoadSeries: [Double] = []
+        systemLoadSeries: [Double] = [],
+        bins24h: [HistoryBin] = []
     ) {
         self.device = device
         self.kind = kind
@@ -348,6 +448,7 @@ public struct DeviceHistory: Sendable, Codable, Equatable {
         self.week = week
         self.series = series
         self.systemLoadSeries = systemLoadSeries
+        self.bins24h = bins24h
     }
 
     /// Hand-written so a `history-summary.json` produced before `systemLoadSeries`
@@ -370,6 +471,7 @@ public struct DeviceHistory: Sendable, Codable, Equatable {
         self.week = try container.decodeIfPresent([DailyStat].self, forKey: .week) ?? []
         self.series = try container.decodeIfPresent([SeriesPoint].self, forKey: .series) ?? []
         self.systemLoadSeries = try container.decodeIfPresent([Double].self, forKey: .systemLoadSeries) ?? []
+        self.bins24h = try container.decodeIfPresent([HistoryBin].self, forKey: .bins24h) ?? []
     }
 }
 

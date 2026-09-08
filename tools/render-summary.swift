@@ -60,6 +60,35 @@ func series(_ keyframes: [(hoursAgo: Double, percent: Double, charging: Bool)]) 
     }
 }
 
+/// The same 24 h as `series`, but as the *rows* the store would have written —
+/// one every five minutes — put through the real binner
+/// (`ChargeSessionBuilder.bins`), so the picture is drawn by the same code the
+/// window runs and not by a hand-built array of bins.
+///
+/// `sample` answers, for a moment `hours` into the window: the level, what the
+/// device was doing, what the wall was putting in (nil on battery — there is no
+/// wall) and what the machine itself was drawing.
+func bins(
+    _ sample: (Double) -> (percent: Double, state: HistoryBinState, powerIn: Double?, load: Double?)
+) -> [HistoryBin] {
+    var rows: [HistoryReading] = []
+    for step in 0...(24 * 12) {
+        let hours = Double(step) / 12
+        let point = sample(hours)
+        rows.append(HistoryReading(
+            timestamp: now.addingTimeInterval((hours - 24) * 3600),
+            device: "sample",
+            percent: Int(point.percent.rounded()),
+            isCharging: point.state == .charging,
+            externalConnected: point.state != .battery,
+            fullyCharged: false,
+            systemLoadW: point.load,
+            powerInW: point.powerIn
+        ))
+    }
+    return ChargeSessionBuilder.bins(from: rows, now: now)
+}
+
 func reading(
     kind: DeviceKind,
     name: String,
@@ -94,6 +123,46 @@ let macSessionEnd = midnight.addingTimeInterval(2 * 3600 + 31 * 60)
 let macReached80 = midnight.addingTimeInterval(1 * 3600 + 12 * 60)
 /// On the charger since 17:18-ish and still climbing.
 let phoneSessionStart = now.addingTimeInterval(-2 * 3600 - 12 * 60)
+
+/// The Mac's day, mirroring the approved mock's shape
+/// (`docs/design/chart/gen.py`, artboard B2) on this render's own clock: a
+/// discharge down to the 24 % the "Last charge" card starts from, the overnight
+/// charge to 100 %, then a long stretch on the wall holding at 90 % — which is
+/// the state the hero and the chips are in right now, and the one only the blue
+/// bars can show.
+let macBins = bins { hours in
+    // A machine that is awake all day: 28-35 W, the sparkline's own range.
+    let load = 31 + 3.5 * sin(hours * 1.3)
+    let chargeStart = 24 - hoursAgo(macSessionStart)
+    let chargeEnd = 24 - hoursAgo(macSessionEnd)
+    if hours < chargeStart {
+        // On battery, 46 % down to the 24 % the charge began at.
+        let progress = hours / max(0.01, chargeStart)
+        return (46 - 22 * progress, .battery, nil, load + 4)
+    }
+    if hours < chargeEnd {
+        let progress = (hours - chargeStart) / max(0.01, chargeEnd - chargeStart)
+        // Wall power falling away as the pack fills: 96 W down to 20 W.
+        return (24 + 76 * progress, .charging, 96 - 76 * progress, load)
+    }
+    // Plugged in and holding: nothing going into the pack, 13 W coming out of
+    // the wall to carry the machine — with the odd busier half hour.
+    let held = max(90, 100 - (hours - chargeEnd) * 1.2)
+    return (held, .mains, Int(hours * 2) % 3 == 0 ? 17 : 13, load)
+}
+
+/// The phone's day: on battery from 88 % down to 28 %, then on the charger
+/// since 13:13 and still climbing. No `mains` stretch — an iPhone is either
+/// charging or it is not, and the code path is the same one.
+let phoneBins = bins { hours in
+    let chargeStart = 24 - hoursAgo(phoneSessionStart)
+    if hours < chargeStart {
+        let progress = hours / max(0.01, chargeStart)
+        return (88 - 60 * progress, .battery, nil, 2.2 + 0.6 * sin(hours * 2.1))
+    }
+    let progress = (hours - chargeStart) / max(0.01, 24 - chargeStart)
+    return (28 + 36 * progress, .charging, 15.6 - 3 * progress, 2.4 + 0.4 * sin(hours * 2.1))
+}
 
 /// A Mac on a 140 W brick at 90 %, plugged in and *not* charging — the state
 /// that used to render "draw 0 W", and the one the system/adapter tiles exist
@@ -142,7 +211,8 @@ let macHistory = DeviceHistory(
     ]),
     // Twelve consecutive system-load readings behind the "System" row's
     // sparkline — the mock's own numbers (docs/design/summary/gen.py).
-    systemLoadSeries: [28, 31, 35, 30, 29, 33, 32, 30, 32, 34, 31, 32]
+    systemLoadSeries: [28, 31, 35, 30, 29, 33, 32, 30, 32, 34, 31, 32],
+    bins24h: macBins
 )
 
 /// A phone on the charger since 13:13, currently at 64 % and still climbing —
@@ -185,7 +255,8 @@ let phoneHistory = DeviceHistory(
     series: series([
         (24, 88, false), (14, 41, false), (hoursAgo(phoneSessionStart), 28, true), (0, 64, true)
     ]),
-    systemLoadSeries: [1.9, 2.4, 2.2, 2.8, 3.1, 2.6, 2.3, 2.0, 2.4, 2.7, 2.5, 2.4]
+    systemLoadSeries: [1.9, 2.4, 2.2, 2.8, 3.1, 2.6, 2.3, 2.0, 2.4, 2.7, 2.5, 2.4],
+    bins24h: phoneBins
 )
 
 /// Twenty-one days of full readings behind the Mac, and none behind the phone —

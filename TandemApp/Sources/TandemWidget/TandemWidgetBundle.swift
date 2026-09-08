@@ -4,9 +4,17 @@ import WidgetKit
 struct TandemEntry: TimelineEntry {
     let date: Date
     let snapshot: TandemSnapshot?
-    /// Only the large family reads `history-summary.json`, so this is `nil`
-    /// for the two smaller ones rather than a file loaded and thrown away.
+    /// Only the large family plots the readings, so this is `nil` for the two
+    /// smaller ones rather than a file loaded and thrown away.
     var history: HistorySummary?
+    /// The medium family's day strips, folded from that same file *once* and
+    /// then copied into every pre-rendered entry.
+    ///
+    /// The whole `HistorySummary` deliberately does not travel here: this
+    /// family archives fifteen entries a quarter of an hour (see `getTimeline`),
+    /// and fifteen copies of a 96-point series and a week of daily stats is a
+    /// lot of archive to move a countdown. Twenty-four `TileBar`s is not.
+    var bars = DayBars()
 
     var mac: DevicePresentation {
         DevicePresentation(kind: .mac, status: snapshot?.mac, now: date)
@@ -32,10 +40,11 @@ struct TandemProvider: TimelineProvider {
 
     func placeholder(in context: Context) -> TandemEntry {
         let now = Date()
-        return TandemEntry(
+        return Self.entry(
             date: now,
             snapshot: SampleSnapshot.make(now: now),
-            history: context.family == .systemLarge ? SampleHistory.make(now: now) : nil
+            history: SampleHistory.make(now: now),
+            family: context.family
         )
     }
 
@@ -46,7 +55,7 @@ struct TandemProvider: TimelineProvider {
         let snapshot = context.isPreview ? SampleSnapshot.make(now: now) : (SnapshotLoader.load() ?? SampleSnapshot.make(now: now))
         if !context.isPreview { SnapshotLoader.markVisible(family: Self.familyName(context.family), now: now) }
         let history = Self.history(family: context.family, isPreview: context.isPreview, now: now)
-        completion(TandemEntry(date: now, snapshot: snapshot, history: history))
+        completion(Self.entry(date: now, snapshot: snapshot, history: history, family: context.family))
     }
 
     /// Two things happen here, and the second is the interesting one.
@@ -77,21 +86,52 @@ struct TandemProvider: TimelineProvider {
         // pixel wider — fifteen archives of a 96-point chart to move a hairline.
         // One entry, refreshed on the same quarter-hour policy, is the trade.
         if context.family == .systemLarge {
-            let entry = TandemEntry(date: now, snapshot: snapshot, history: HistoryLoader.load())
+            let entry = Self.entry(date: now, snapshot: snapshot, history: HistoryLoader.load(), family: context.family)
             completion(Timeline(entries: [entry], policy: .after(deadline)))
             return
         }
 
+        // Read and folded once, then shared: the strip is a picture of the last
+        // 24 h and does not move over a quarter of an hour, so redoing it per
+        // entry would buy nothing and cost fifteen file reads.
+        let bars = context.family == .systemMedium
+            ? DayBars(history: HistoryLoader.load(), now: now)
+            : DayBars()
         let steps = Int(Self.refreshInterval / Self.entryInterval)
         let entries = (0..<steps).map { step in
-            TandemEntry(date: now.addingTimeInterval(Double(step) * Self.entryInterval), snapshot: snapshot)
+            TandemEntry(
+                date: now.addingTimeInterval(Double(step) * Self.entryInterval),
+                snapshot: snapshot,
+                bars: bars
+            )
         }
         completion(Timeline(entries: entries, policy: .after(deadline)))
     }
 
-    /// The gallery gets the synthetic day; a placed large widget gets the file.
+    /// One entry, with each family given exactly the history it draws: the
+    /// large one keeps the summary for its plot, the medium one keeps twelve
+    /// folded columns per device, and the small one keeps neither.
+    private static func entry(
+        date: Date,
+        snapshot: TandemSnapshot?,
+        history: HistorySummary?,
+        family: WidgetFamily
+    ) -> TandemEntry {
+        switch family {
+        case .systemLarge:
+            TandemEntry(date: date, snapshot: snapshot, history: history)
+        case .systemMedium:
+            TandemEntry(date: date, snapshot: snapshot, bars: DayBars(history: history, now: date))
+        default:
+            TandemEntry(date: date, snapshot: snapshot)
+        }
+    }
+
+    /// The gallery gets the synthetic day; a placed widget gets the file. Both
+    /// of the bigger families draw one, so this no longer belongs to the large
+    /// one alone.
     private static func history(family: WidgetFamily, isPreview: Bool, now: Date) -> HistorySummary? {
-        guard family == .systemLarge else { return nil }
+        guard family == .systemLarge || family == .systemMedium else { return nil }
         return isPreview ? SampleHistory.make(now: now) : (HistoryLoader.load() ?? SampleHistory.make(now: now))
     }
 
@@ -131,7 +171,7 @@ struct TandemWidgetEntryView: View {
                 // The medium tiles want a 14 pt inset measured from the widget
                 // edge, not from inside WidgetKit's margins, so the margins are
                 // cancelled here and re-applied as `MediumWidgetView.inset`.
-                MediumWidgetView(mac: entry.mac, phone: entry.phone)
+                MediumWidgetView(mac: entry.mac, phone: entry.phone, bars: entry.bars)
                     .padding(EdgeInsets(top: -contentMargins.top,
                                         leading: -contentMargins.leading,
                                         bottom: -contentMargins.bottom,

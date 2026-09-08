@@ -1305,6 +1305,114 @@
           }
         }
       }
+    },
+    "Charge · 24 hours": {
+      "comment": "Summary window: the title over the 24 h level plot.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge · 24 hours"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заряд · 24 часа"
+          }
+        }
+      }
+    },
+    "Power": {
+      "comment": "Summary window: the title over the power plot under the 24 h chart.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Power"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мощность"
+          }
+        }
+      }
+    },
+    "on battery": {
+      "comment": "Summary window, 24 h chart legend: the bars for half hours spent on the battery.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "on battery"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "от батареи"
+          }
+        }
+      }
+    },
+    "on mains": {
+      "comment": "Summary window, 24 h chart legend: the bars for half hours plugged in and not charging.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "on mains"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "от сети"
+          }
+        }
+      }
+    },
+    "from adapter, W": {
+      "comment": "Summary window, power chart legend: the bars, watts coming in from the adapter.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "from adapter, W"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "от адаптера, W"
+          }
+        }
+      }
+    },
+    "system, W": {
+      "comment": "Summary window, power chart legend: the line, what the machine itself is drawing.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "system, W"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "система, W"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

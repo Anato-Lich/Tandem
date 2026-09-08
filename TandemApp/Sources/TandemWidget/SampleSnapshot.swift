@@ -1,9 +1,14 @@
 import Foundation
 
-/// The 71 % / 64 % pair the widget gallery shows before it has any real data:
-/// a Mac on battery with 4:19 left, an iPhone charging at 16.5 W off a 45 W
-/// adapter, 14 minutes from 80 %. Chosen to match the approved mock-ups so the
-/// gallery preview and the live widget are the same picture.
+/// The 32 % / 38 % pair the widget gallery shows before it has any real data:
+/// a MacBook on a 140 W brick pulling 136 W and 27 minutes from 80 %, an iPhone
+/// on battery with 13:21 left.
+///
+/// These are the approved mock-up's own numbers
+/// (`docs/design/widget/MediumA.dc.html`), so the gallery preview and the
+/// picture the design was signed off on are the same picture — and
+/// `SampleHistory`'s day ends on exactly these two levels, so the tile and the
+/// strip under it never disagree about the same battery.
 enum SampleSnapshot {
 
     static func make(now: Date = Date()) -> TandemSnapshot {
@@ -13,27 +18,29 @@ enum SampleSnapshot {
                 reading: reading(
                     kind: .mac,
                     name: "MacBook Pro",
-                    percent: 71,
-                    isCharging: false,
-                    batteryPowerW: -13.4,
-                    adapterWatts: nil,
+                    percent: SampleHistory.macPercent,
+                    isCharging: true,
+                    batteryPowerW: 96,
+                    systemPowerInW: 136,
+                    adapterWatts: 140,
                     now: now
                 ),
-                timeToEmpty: 4 * 3600 + 19 * 60,
+                etaTo80: 27 * 60,
+                chargingWatts: 136,
                 lastSeen: now
             ),
             phone: DeviceStatus(
                 reading: reading(
                     kind: .iphone,
                     name: "iPhone",
-                    percent: 64,
-                    isCharging: true,
-                    batteryPowerW: 16.5,
-                    adapterWatts: 45,
+                    percent: SampleHistory.phonePercent,
+                    isCharging: false,
+                    batteryPowerW: -1.8,
+                    systemPowerInW: nil,
+                    adapterWatts: nil,
                     now: now
                 ),
-                etaTo80: 14 * 60,
-                chargingWatts: 16.5,
+                timeToEmpty: 13 * 3600 + 21 * 60,
                 lastSeen: now
             )
         )
@@ -45,6 +52,7 @@ enum SampleSnapshot {
         percent: Int,
         isCharging: Bool,
         batteryPowerW: Double,
+        systemPowerInW: Double?,
         adapterWatts: Int?,
         now: Date
     ) -> BatteryReading {
@@ -62,7 +70,7 @@ enum SampleSnapshot {
             voltageMV: 0,
             instantAmperageMA: 0,
             batteryPowerW: batteryPowerW,
-            systemPowerInW: nil,
+            systemPowerInW: systemPowerInW,
             adapterWatts: adapterWatts,
             adapterDescription: nil,
             temperatureC: 0,

@@ -171,11 +171,15 @@ enum DeviceStatColumns {
     }
 }
 
-/// Level → colour, the one rule the whole app draws by: red under 20 %, orange
-/// under 50 %, green above. Charging never changes it — that is the bolt's job.
+/// Level → colour, the one rule the whole app draws by: green, and red under
+/// 20 %. Two bands, not three. Orange is reserved for charging — the bolt, the
+/// amber watts, the amber bars of a day strip — and an orange band at 49 %
+/// collided with it: half the batteries in the app looked plugged in.
 func batteryLevelColor(_ percent: Int?) -> Color {
     guard let percent else { return .secondary }
-    if percent < 20 { return .red }
-    if percent < 50 { return .orange }
-    return .green
+    return percent < lowBatteryLevel ? .red : .green
 }
+
+/// Below this a level reads as red, in the popover, the widget and the summary
+/// window alike.
+let lowBatteryLevel = 20

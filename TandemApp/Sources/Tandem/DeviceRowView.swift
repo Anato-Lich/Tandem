@@ -125,8 +125,9 @@ struct DeviceRowView: View {
             .foregroundStyle(.orange)
     }
 
-    /// 6 pt bar, colored purely by charge level (red < 20 %, orange < 50 %,
-    /// green otherwise). Charging state never changes this color.
+    /// 6 pt bar, coloured purely by charge level (red < 20 %, green
+    /// otherwise). Charging state never changes this colour — that is the
+    /// bolt's job, and orange belongs to it alone.
     private func levelBar(percent: Int) -> some View {
         let fraction = CGFloat(min(100, max(0, percent))) / 100
         return GeometryReader { geometry in

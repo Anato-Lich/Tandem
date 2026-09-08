@@ -3,13 +3,14 @@
 //
 //   swiftc -O -o /tmp/render-widget \
 //       tools/render-widget.swift \
-//       TandemApp/Sources/TandemWidget/{DevicePresentation,RingView,MediumWidgetView,SmallWidgetView,LargeWidgetView,SampleSnapshot,SampleHistory,MonitorErrorShim}.swift \
+//       TandemApp/Sources/TandemWidget/{DevicePresentation,RingView,DayBars,MediumWidgetView,SmallWidgetView,LargeWidgetView,SampleSnapshot,SampleHistory,MonitorErrorShim}.swift \
 //       BatteryCore/Sources/BatteryCore/{Models,TandemSnapshot,ChargeEstimator,Formatting}.swift \
 //       BatteryCore/Sources/BatteryCore/History/HistoryModels.swift
 //   /tmp/render-widget docs/widget-small.png small
 //   /tmp/render-widget docs/widget-small-charging.png small-charging
 //   /tmp/render-widget docs/widget-medium.png medium
 //   /tmp/render-widget docs/widget-medium-charging.png medium-charging
+//   /tmp/render-widget docs/widget-medium-states.png medium-states
 //   /tmp/render-widget docs/widget-large.png large
 //
 // Caveat: this draws the widget *content* only, on a plain sheet. The
@@ -70,14 +71,152 @@ func chargingSample(now: Date = Date()) -> TandemSnapshot {
     )
 }
 
+// MARK: - The state matrix
+
+/// One tile state from the approved matrix, built as the snapshot that produces
+/// it rather than as a hand-set string: the sheet is only worth exporting if it
+/// is what the real view does with real data.
+func state(
+    kind: DeviceKind,
+    percent: Int,
+    charging: Bool = false,
+    external: Bool = false,
+    fullyCharged: Bool = false,
+    powerIn: Double? = nil,
+    adapter: Int? = nil,
+    load: Double? = nil,
+    etaTo80: TimeInterval? = nil,
+    timeToEmpty: TimeInterval? = nil,
+    silentFor: TimeInterval = 0,
+    now: Date
+) -> DevicePresentation {
+    let reading = BatteryReading(
+        deviceID: "state-\(kind.rawValue)", kind: kind, name: "device",
+        percent: percent, isCharging: charging, externalConnected: external,
+        fullyCharged: fullyCharged,
+        rawCurrentMAh: 0, rawMaxMAh: 0, designMAh: 0, voltageMV: 0, instantAmperageMA: 0,
+        batteryPowerW: charging ? 60 : -13, systemPowerInW: powerIn,
+        systemLoadW: load, adapterWatts: adapter,
+        adapterDescription: nil, temperatureC: 0, cycleCount: 0,
+        reportedTimeRemainingMinutes: nil, avgTimeToEmptyMinutes: nil,
+        timestamp: now, transport: kind == .mac ? .local : .wifi
+    )
+    let status = DeviceStatus(
+        reading: reading,
+        etaTo80: etaTo80,
+        timeToEmpty: timeToEmpty,
+        chargingWatts: charging ? powerIn : nil,
+        lastSeen: now.addingTimeInterval(-silentFor)
+    )
+    return DevicePresentation(kind: kind, status: status, now: now)
+}
+
+/// `[90, 86, …]` + `"mmb…"` → twelve columns, the mock-up's own notation.
+func columns(_ percents: [Int], _ states: String) -> [TileBar] {
+    zip(percents, states).map { percent, letter in
+        TileBar(percent: percent, state: letter == "c" ? .charging : (letter == "m" ? .mains : .battery))
+    }
+}
+
+/// The four combinations from `docs/design/widget/Combos.dc.html`, as a 2 x 2
+/// sheet of real medium widgets.
+struct StatesSheet: View {
+    let now: Date
+
+    private let macDay = [90, 90, 90, 90, 90, 90, 86, 74, 60, 44, 30, 32]
+    private let phoneDay = [62, 78, 92, 86, 80, 74, 68, 60, 54, 48, 42, 38]
+
+    var body: some View {
+        Grid(horizontalSpacing: 24, verticalSpacing: 22) {
+            GridRow {
+                cell("Both charging", bothCharging)
+                cell("Mac on the wall, iPhone on battery", macMains)
+            }
+            GridRow {
+                cell("Mac on battery, iPhone silent", macBattery)
+                cell("Mac on hold, iPhone charged on the wire", macOnHold)
+            }
+        }
+        .padding(24)
+    }
+
+    private var bothCharging: MediumWidgetView {
+        MediumWidgetView(
+            mac: state(kind: .mac, percent: 32, charging: true, external: true,
+                       powerIn: 62, adapter: 140, etaTo80: 27 * 60, now: now),
+            phone: state(kind: .iphone, percent: 38, charging: true, external: true,
+                         powerIn: 36, adapter: 45, etaTo80: 14 * 60, now: now),
+            bars: DayBars(mac: columns(macDay, "mmmmmmbbbbbc"),
+                          phone: columns(phoneDay, "ccbbbbbbbbbc"))
+        )
+    }
+
+    private var macMains: MediumWidgetView {
+        MediumWidgetView(
+            mac: state(kind: .mac, percent: 90, external: true, powerIn: 13, adapter: 140, now: now),
+            phone: state(kind: .iphone, percent: 38, timeToEmpty: 13 * 3600 + 21 * 60, now: now),
+            bars: DayBars(mac: columns(Array(repeating: 90, count: 12), "mmmmmmmmmmmm"),
+                          phone: columns(phoneDay, "ccbbbbbbbbbb"))
+        )
+    }
+
+    private var macBattery: MediumWidgetView {
+        MediumWidgetView(
+            mac: state(kind: .mac, percent: 32, load: 13,
+                       timeToEmpty: 4 * 3600 + 19 * 60, now: now),
+            // Ten minutes of silence: past the five-minute window, so the tile
+            // dims, takes the exclamation mark and says when it last spoke.
+            phone: state(kind: .iphone, percent: 38, timeToEmpty: 13 * 3600 + 21 * 60,
+                         silentFor: 10 * 60, now: now),
+            bars: DayBars(mac: columns(macDay, "mmmmmmbbbbbb"),
+                          phone: columns(phoneDay, "ccbbbbbbbbbb"))
+        )
+    }
+
+    private var macOnHold: MediumWidgetView {
+        MediumWidgetView(
+            mac: state(kind: .mac, percent: 62, external: true, powerIn: 13, adapter: 140, now: now),
+            phone: state(kind: .iphone, percent: 100, external: true, fullyCharged: true,
+                         adapter: 45, now: now),
+            bars: DayBars(
+                mac: columns([70, 68, 66, 64, 62, 62, 62, 62, 62, 62, 62, 62], "bbbbbmmmmmmm"),
+                phone: columns([62, 78, 92, 100, 100, 100, 100, 100, 100, 100, 100, 100], "cccmmmmmmmmm")
+            )
+        )
+    }
+
+    private func cell(_ title: String, _ widget: MediumWidgetView) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(verbatim: title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color.black.opacity(0.55))
+            widget
+                .frame(width: 360, height: 170)
+                .background(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(Color(white: 0.23))
+                )
+                .environment(\.colorScheme, .dark)
+        }
+    }
+}
+
 @main
 struct RenderWidget {
+
+    /// The day with its newest column replaced by where the tile actually is.
+    static func landing(_ bars: [TileBar], on percent: Int?) -> [TileBar] {
+        guard !bars.isEmpty else { return bars }
+        var bars = bars
+        bars[bars.count - 1] = TileBar(percent: percent, state: .charging)
+        return bars
+    }
 
     @MainActor
     static func main() {
         let args = CommandLine.arguments
         guard args.count >= 3 else {
-            FileHandle.standardError.write(Data("usage: render-widget <out.png> small|small-charging|medium|medium-charging|large\n".utf8))
+            FileHandle.standardError.write(Data("usage: render-widget <out.png> small|small-charging|medium|medium-charging|medium-states|large\n".utf8))
             exit(2)
         }
         let out = args[1]
@@ -94,6 +233,11 @@ struct RenderWidget {
         case "small", "small-charging":
             render(SmallWidgetView(mac: mac, phone: phone).padding(16),
                    size: CGSize(width: 170, height: 170), scale: 3, to: out)
+        case "medium-states":
+            // The whole matrix on one sheet, on the mock-up's grey, so the four
+            // combinations can be read against `Combos.dc.html` side by side.
+            render(StatesSheet(now: now).background(Color(white: 0.55)),
+                   size: CGSize(width: 816, height: 452), scale: 2, to: out)
         case "large":
             // The chart is the point of this family and it is drawn in the
             // colours a real widget gets on the desktop, so the large export is
@@ -102,7 +246,16 @@ struct RenderWidget {
             render(LargeWidgetView(mac: mac, phone: phone, history: SampleHistory.make(now: now), now: now),
                    size: CGSize(width: 360, height: 376), scale: 2, to: out, dark: true)
         default:
-            render(MediumWidgetView(mac: mac, phone: phone),
+            var bars = DayBars(history: SampleHistory.make(now: now), now: now)
+            if variant.hasSuffix("-charging") {
+                // The stress pair is a different snapshot from the sample day,
+                // so the newest column is corrected to agree with the tile: a
+                // widget picture whose bolt and whose last bar disagreed about
+                // the same two minutes would be a bug report, not a render.
+                bars.mac = Self.landing(bars.mac, on: mac.percent)
+                bars.phone = Self.landing(bars.phone, on: phone.percent)
+            }
+            render(MediumWidgetView(mac: mac, phone: phone, bars: bars),
                    size: CGSize(width: 360, height: 170), scale: 3, to: out)
         }
     }

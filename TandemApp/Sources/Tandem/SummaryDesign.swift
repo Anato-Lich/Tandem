@@ -47,14 +47,17 @@ extension Color {
     }
 }
 
-/// Level → colour, the app's one rule (red under 20 %, amber under 50 %, green
-/// above), in the summary window's own palette. `batteryLevelColor` stays as it
-/// is for the popover and the menu bar, which draw in system colours.
+/// Level → colour, the app's one rule (green, red under 20 %), in the summary
+/// window's own palette. `batteryLevelColor` stays as it is for the popover and
+/// the menu bar, which draw in system colours.
+///
+/// Amber deliberately does not appear here: in this window it already means
+/// "charging" on every bar of the 24 h card (`HistoryBinState.summaryColor`),
+/// and a ring that turned the same colour at 49 % said the machine was on a
+/// charger when it was not.
 func summaryLevelColor(_ percent: Int?) -> Color {
     guard let percent else { return SummaryPalette.muted }
-    if percent < 20 { return SummaryPalette.red }
-    if percent < 50 { return SummaryPalette.amber }
-    return SummaryPalette.green
+    return percent < lowBatteryLevel ? SummaryPalette.red : SummaryPalette.green
 }
 
 // MARK: - Which layout
@@ -75,10 +78,16 @@ enum SummaryLayout: String, CaseIterable, Identifiable {
 
     static let storageKey = "summaryLayout"
 
+    /// Both windows grew by 140 pt when the 24 h card became two plots
+    /// (`SummaryChartCard`): the level plot alone used to be the whole card, and
+    /// at 640 pt the power plot under it had nowhere to go but off the bottom
+    /// edge. Nothing above the card moved — the approved cards keep their sizes,
+    /// their padding and their order — and the tabbed layout still spends
+    /// whatever is left over on the level plot.
     var size: CGSize {
         switch self {
-        case .columns: return CGSize(width: 924, height: 640)
-        case .tabs: return CGSize(width: 480, height: 640)
+        case .columns: return CGSize(width: 924, height: 780)
+        case .tabs: return CGSize(width: 480, height: 780)
         }
     }
 
@@ -452,45 +461,126 @@ struct SummarySparkline: View {
 
 // MARK: - The 24 h chart
 
-/// The last 24 h, with the right-hand edge being **now**: a percent line over
-/// amber-shaded charging stretches, dashed grid lines at 0 / 50 / 100 labelled
-/// on the left, real clock hours every six hours counted back from now, and a
-/// hairline plus a dot where the window ends.
+extension HistoryBinState {
+
+    /// The one rule these two plots follow: colour means **state**, never
+    /// level. Green is the pack, amber is a charge, blue is the wall carrying
+    /// the machine with nothing going into the pack. (Everywhere else in the
+    /// app colour means level — a ring, a bar, a menu-bar glyph — and that is
+    /// exactly why the chart may not: a bar that changed colour as the battery
+    /// fell would be saying two things at once.)
+    var summaryColor: Color {
+        switch self {
+        case .battery: return SummaryPalette.green
+        case .charging: return SummaryPalette.amber
+        case .mains: return SummaryPalette.blue
+        }
+    }
+}
+
+/// One bar of either plot, already resolved to points.
+private struct SummaryChartBar: Identifiable {
+    /// The middle of the bin, which is where the bar is centred.
+    var mid: Date
+    var value: Double
+    var width: CGFloat
+    var color: Color
+    var opacity: Double
+    var id: Date { mid }
+}
+
+/// One point of the system-load line. `run` breaks the line where the data
+/// does: a stretch nobody measured is a hole, not a straight line across it.
+private struct SummaryLoadPoint: Identifiable {
+    var t: Date
+    var value: Double
+    var run: Int
+    var id: Date { t }
+}
+
+/// The summary window's 24 h card: half-hour bars of battery level over a
+/// second plot of where the watts were going, on one shared time axis
+/// (`docs/design/chart/ChartB2.dc.html`).
 ///
-/// The time axis is the last 24 hours rather than the calendar day, because the
-/// question this chart answers is "what happened to the battery since this time
-/// yesterday". The labels are therefore whole clock hours *inside* that moving
-/// window (20:40 now -> 02 - 08 - 14 - 20), not a 0-24 ruler and not a stride
-/// Charts picks for itself.
+/// **Bars, not a line.** `DeviceHistory.bins24h` is 48 fixed half hours, so
+/// every bar is the same width, a gap in the data is visible as a gap, and each
+/// bar can carry the state the device was in for most of that half hour. The
+/// line this replaced could do none of that: a `SeriesPoint` is a reading at
+/// whatever uneven instant the skip rule produced one (NOTES.md §15.2), and a
+/// line drawn through them says "we were here the whole time" about an hour
+/// nobody watched.
 ///
-/// Charging is shaded rather than coloured into the line, because the line's
-/// own colour would then be saying two things at once - and everywhere else in
-/// this app colour means level and nothing but level.
-struct SummaryChart: View {
-    let series: [SeriesPoint]
+/// **Three states.** Green on the pack, amber charging, blue on the wall and
+/// holding. The third is not a nicety: a Mac parked at 90 % on a 140 W brick is
+/// neither charging nor discharging, and this is the only view in the app that
+/// can say so. An iPhone never reports it, and needs no separate code path.
+///
+/// **The time axis is shared and labelled once**, at the bottom of the power
+/// plot, on whole clock hours six hours apart counted back from now — because
+/// the question is "what happened since this time yesterday", not "what did the
+/// calendar day look like". Both plots reserve the same width for their y
+/// labels (`axisLabelWidth`), which is what keeps the two x axes on the same
+/// grid however wide the numbers beside them get.
+struct SummaryChartCard: View {
+    let bins: [HistoryBin]
     var now: Date = Date()
-    var levelColor: Color = SummaryPalette.green
-    /// A fixed plot height, or `nil` to take whatever room the card has left
-    /// (the tabbed layout, where the chart card is the floor of the window).
-    var height: CGFloat? = 110
+    /// The width the card's content gets, i.e. the column minus this card's own
+    /// horizontal padding. Handed in rather than measured: both layouts are
+    /// fixed-size windows (`SummaryLayout.size`, `.windowResizability(.contentSize)`),
+    /// and a `GeometryReader` here would feed a layout pass back through the
+    /// bar widths for no gain — and would not have settled at all by the time
+    /// `tools/render-summary.swift` takes its picture.
+    var contentWidth: CGFloat = 396
+    /// The level plot's height, and its floor when `fillsHeight` is set.
+    var levelHeight: CGFloat = 110
+    var powerHeight: CGFloat = 70
+    /// The tabbed layout, where the card is the floor of the window: the level
+    /// plot takes whatever room is left over, the power plot stays put.
+    var fillsHeight: Bool = false
 
-    /// The smallest a filling chart is allowed to get.
-    static let minimumHeight: CGFloat = 118
+    /// The card's own horizontal padding, which is what a layout has to
+    /// subtract from its column to hand `contentWidth` in.
+    static let horizontalPadding: CGFloat = 12
 
-    /// How much of the plot area is kept clear at each end, so no axis label is
-    /// ever elided into the "..." this chart used to grow at its bottom-right
-    /// corner. The trailing figure has to hold half of the right-most hour
-    /// label (which can sit right on `now`) plus the end dot.
+    /// The gap between two bars, in points, straight out of the design file
+    /// (`gen.py`: `x + 1`, `width - 2`).
+    private static let barGap: CGFloat = 2
+    private static let barRadius: CGFloat = 1.5
+    /// Every y label is drawn into a box this wide, in both plots, so the two
+    /// time axes line up whatever the numbers are.
+    private static let axisLabelWidth: CGFloat = 22
+    /// That box plus the gap Charts leaves between an axis and its plot.
+    private static let axisGutter: CGFloat = 6
+    /// Kept clear at each end of the *data*, so the right-most hour label and
+    /// the "80 %" tag have room and no label is ever elided into the "…" this
+    /// chart used to grow in its bottom-right corner.
     private static let leadingInset: CGFloat = 2
     private static let trailingInset: CGFloat = 14
 
-    /// The 24 h window. The upper bound is `now` exactly; the room the labels
-    /// need is taken out of the plot area (`plotDimension` padding), not out of
-    /// the domain, so "the right edge is this second" stays literally true.
+    /// Fewer than two bins with a percent in them is not a chart. The axes are
+    /// still drawn — an empty grid says "this is where it will appear" — with
+    /// one line of text across them.
+    var hasData: Bool { bins.filter { $0.percent != nil }.count >= 2 }
+
+    // MARK: Geometry
+
+    /// The window: 24 h ending exactly at `now`. The bins are pinned to the
+    /// clock inside it, so the newest one is the half hour `now` falls in and
+    /// the oldest starts up to half an hour after the left edge.
     private var window: ClosedRange<Date> {
         let start = now.addingTimeInterval(-24 * 3600)
         return start...max(now, start.addingTimeInterval(60))
     }
+
+    /// The room the data itself gets, once the y labels and the two insets are
+    /// taken out of the card's width.
+    private var dataWidth: CGFloat {
+        max(48, contentWidth - Self.axisLabelWidth - Self.axisGutter - Self.leadingInset - Self.trailingInset)
+    }
+
+    /// One bin's share of that, and the bar drawn inside it.
+    private var binWidth: CGFloat { dataWidth / CGFloat(max(1, bins.count)) }
+    private var barWidth: CGFloat { max(1, binWidth - Self.barGap) }
 
     /// Whole clock hours, six hours apart, counted back from the hour `now` is
     /// in and stopping before the left edge: at 20:40 that is 02, 08, 14, 20.
@@ -506,94 +596,228 @@ struct SummaryChart: View {
         return ticks.reversed()
     }
 
-    /// The stretches during which the device was charging, as `[point, next
-    /// point]` intervals merged where they touch and clipped to the window. The
-    /// last point carries the span forward to `now`, since that is still what is
-    /// happening.
-    private var chargingSpans: [SummarySpan] {
-        var spans: [SummarySpan] = []
-        for (index, point) in series.enumerated() where point.isCharging {
-            let end = index + 1 < series.count ? series[index + 1].t : now
-            if var last = spans.last, last.end >= point.t {
-                last.end = end
-                spans[spans.count - 1] = last
-            } else {
-                spans.append(SummarySpan(start: point.t, end: end))
-            }
-        }
-        return spans.compactMap { span in
-            let start = max(span.start, window.lowerBound)
-            let end = min(span.end, window.upperBound)
-            return end > start ? SummarySpan(start: start, end: end) : nil
+    /// A bin's right edge — its own half hour, except for the newest one, which
+    /// ends at `now` and is therefore usually a part-bin. Its bar is narrowed
+    /// to match rather than being drawn full width past the present.
+    private func geometry(_ bin: HistoryBin, isLast: Bool) -> (mid: Date, width: CGFloat)? {
+        let end = min(bin.start.addingTimeInterval(ChargeSessionBuilder.binWidth), max(now, bin.start))
+        let span = end.timeIntervalSince(bin.start)
+        guard span > 0 else { return nil }
+        let fraction = min(1, span / ChargeSessionBuilder.binWidth)
+        let width: CGFloat = isLast ? max(1, binWidth * CGFloat(fraction) - Self.barGap) : barWidth
+        return (bin.start.addingTimeInterval(span / 2), width)
+    }
+
+    // MARK: The three series
+
+    private var levelBars: [SummaryChartBar] {
+        guard hasData else { return [] }
+        return bins.enumerated().compactMap { index, bin in
+            guard let percent = bin.percent else { return nil }
+            let isLast = index == bins.count - 1
+            guard let box = geometry(bin, isLast: isLast) else { return nil }
+            return SummaryChartBar(
+                mid: box.mid,
+                value: Double(percent),
+                width: box.width,
+                color: bin.state.summaryColor,
+                // The newest bar at full strength, everything behind it a
+                // shade back: the eye lands on "now" without a label.
+                opacity: isLast ? 1 : 0.85
+            )
         }
     }
+
+    /// What the wall was putting in. Amber while charging; a thin blue bar
+    /// while the machine is merely being carried by the adapter; **nothing at
+    /// all** on battery, where there is no wall and no number.
+    private var powerBars: [SummaryChartBar] {
+        guard hasData else { return [] }
+        return bins.enumerated().compactMap { index, bin in
+            guard let watts = bin.powerInW, watts > 0, bin.state != .battery else { return nil }
+            let isLast = index == bins.count - 1
+            guard let box = geometry(bin, isLast: isLast) else { return nil }
+            return SummaryChartBar(
+                mid: box.mid,
+                value: watts,
+                width: box.width,
+                color: bin.state == .charging ? SummaryPalette.amber : SummaryPalette.blue,
+                opacity: bin.state == .charging ? (isLast ? 1 : 0.85) : 0.55
+            )
+        }
+    }
+
+    /// What the machine itself was drawing, in purple over the bars.
+    private var loadPoints: [SummaryLoadPoint] {
+        guard hasData else { return [] }
+        var points: [SummaryLoadPoint] = []
+        var run = 0
+        var previousIndex: Int?
+        for (index, bin) in bins.enumerated() {
+            guard let watts = bin.systemLoadW else { continue }
+            if let previousIndex, index > previousIndex + 1 { run += 1 }
+            previousIndex = index
+            guard let box = geometry(bin, isLast: index == bins.count - 1) else { continue }
+            points.append(SummaryLoadPoint(t: box.mid, value: watts, run: run))
+        }
+        return points
+    }
+
+    /// The power plot's ceiling: whatever the tallest of the two series needs,
+    /// rounded up to a round number, so the axis reads 0 · 10 · 20 rather than
+    /// 0 · 6.5 · 13.
+    var powerCeiling: Double {
+        let bars = bins.compactMap(\.powerInW).max() ?? 0
+        let load = bins.compactMap(\.systemLoadW).max() ?? 0
+        return Self.niceCeiling(max(bars, load))
+    }
+
+    static func niceCeiling(_ value: Double) -> Double {
+        let steps: [Double] = [20, 50, 100, 200, 500, 1000]
+        if let step = steps.first(where: { $0 >= value }) { return step }
+        return (value / 500).rounded(.up) * 500
+    }
+
+    // MARK: The card
 
     var body: some View {
-        if let height {
-            plot.frame(height: height)
-        } else {
-            plot.frame(minHeight: Self.minimumHeight, maxHeight: .infinity)
+        VStack(alignment: .leading, spacing: 6) {
+            header(
+                String(localized: "Charge · 24 hours"),
+                [
+                    .bar(SummaryPalette.green, String(localized: "on battery")),
+                    .bar(SummaryPalette.amber, String(localized: "charging")),
+                    .bar(SummaryPalette.blue, String(localized: "on mains"))
+                ]
+            )
+            level
+            header(
+                String(localized: "Power"),
+                [
+                    .bar(SummaryPalette.amber, String(localized: "from adapter, W")),
+                    .line(SummaryPalette.purple, String(localized: "system, W"))
+                ]
+            )
+            .padding(.top, 2)
+            power
+        }
+        .padding(.horizontal, Self.horizontalPadding)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity, maxHeight: fillsHeight ? .infinity : nil, alignment: .top)
+        .background(SummaryPalette.card)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func header(_ title: String, _ items: [SummaryLegendItem]) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            SummarySectionLabel(text: title)
+            Spacer(minLength: 4)
+            SummaryLegend(items: items)
         }
     }
 
-    private var plot: some View {
-        Chart {
-            ForEach(chargingSpans) { span in
-                RectangleMark(
-                    xStart: .value("from", span.start),
-                    xEnd: .value("to", span.end),
-                    yStart: .value("low", 0),
-                    yEnd: .value("high", 100)
+    // MARK: The level plot
+
+    @ViewBuilder
+    private var level: some View {
+        let plot = Chart {
+            ForEach(levelBars) { bar in
+                BarMark(
+                    x: .value("time", bar.mid),
+                    yStart: .value("from", 0),
+                    yEnd: .value("percent", bar.value),
+                    width: .fixed(bar.width)
                 )
-                .foregroundStyle(SummaryPalette.amber.opacity(0.14))
+                .cornerRadius(Self.barRadius)
+                .foregroundStyle(bar.color.opacity(bar.opacity))
             }
 
-            ForEach(series, id: \.t) { point in
-                LineMark(
-                    x: .value("time", point.t),
-                    y: .value("percent", point.percent)
-                )
-                .interpolationMethod(.monotone)
-                .lineStyle(StrokeStyle(lineWidth: 1.8, lineJoin: .round))
-                .foregroundStyle(levelColor)
-            }
-
-            // "Now": the hairline the window ends on, and the dot on the last
-            // reading we hold. Together they say which end of the chart is the
-            // present without a word of text to truncate.
-            RuleMark(x: .value("now", now))
-                .lineStyle(StrokeStyle(lineWidth: 1))
-                .foregroundStyle(SummaryPalette.muted.opacity(0.45))
-
-            if let last = series.last {
-                PointMark(
-                    x: .value("time", last.t),
-                    y: .value("percent", last.percent)
-                )
-                .symbolSize(30)
-                .foregroundStyle(levelColor)
-            }
+            // The 80 % line: where a charge should stop, and the level this
+            // app's one timer counts down to.
+            RuleMark(y: .value("80 %", 80))
+                .lineStyle(StrokeStyle(lineWidth: 0.8, dash: [3, 3]))
+                .foregroundStyle(SummaryPalette.ink.opacity(0.5))
+                .annotation(
+                    position: .top,
+                    alignment: .trailing,
+                    spacing: 1,
+                    // Without this the tag is cropped against the plot's edge
+                    // — the rule ends exactly there — and what is left reads as
+                    // a smudge rather than as a number.
+                    overflowResolution: .init(x: .fit(to: .plot), y: .disabled)
+                ) {
+                    Text(verbatim: "80 %")
+                        .font(.system(size: 9))
+                        .monospacedDigit()
+                        .foregroundStyle(SummaryPalette.muted)
+                        .padding(.horizontal, 3)
+                        .background(
+                            // The bars run right up to the present, so the tag
+                            // sits on a scrap of the card's own colour rather
+                            // than half-legible over a bar.
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                .fill(SummaryPalette.card.opacity(0.85))
+                        )
+                        .fixedSize()
+                }
         }
-        .chartYScale(domain: 0...100, range: .plotDimension(startPadding: 3, endPadding: 3))
+        .chartYScale(domain: 0...100)
+        .chartYAxis { axisMarks([0, 50, 100]) }
         .chartXScale(
             domain: window,
             range: .plotDimension(startPadding: Self.leadingInset, endPadding: Self.trailingInset)
         )
-        .chartYAxis {
-            AxisMarks(position: .leading, values: [0, 50, 100]) { value in
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.6, dash: [2, 3]))
-                    .foregroundStyle(SummaryPalette.hairline)
-                AxisValueLabel {
-                    if let percent = value.as(Int.self) {
-                        Text(verbatim: "\(percent)")
-                            .font(.system(size: 9.5))
-                            .monospacedDigit()
-                            .foregroundStyle(SummaryPalette.muted)
-                            .fixedSize()
-                    }
-                }
+        // Labelled once, under the power plot: two rulers under one another
+        // would only invite the eye to check they agree.
+        .chartXAxis(.hidden)
+        .overlay(alignment: .center) {
+            if !hasData {
+                Text(String(localized: "Collecting history…"))
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(SummaryPalette.muted)
             }
         }
+
+        if fillsHeight {
+            plot.frame(minHeight: levelHeight, maxHeight: .infinity)
+        } else {
+            plot.frame(height: levelHeight)
+        }
+    }
+
+    // MARK: The power plot
+
+    private var power: some View {
+        Chart {
+            ForEach(powerBars) { bar in
+                BarMark(
+                    x: .value("time", bar.mid),
+                    yStart: .value("from", 0),
+                    yEnd: .value("watts", bar.value),
+                    width: .fixed(bar.width)
+                )
+                .cornerRadius(Self.barRadius)
+                .foregroundStyle(bar.color.opacity(bar.opacity))
+            }
+
+            ForEach(loadPoints) { point in
+                LineMark(
+                    x: .value("time", point.t),
+                    y: .value("watts", point.value),
+                    series: .value("run", point.run)
+                )
+                .interpolationMethod(.monotone)
+                .lineStyle(StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+                .foregroundStyle(SummaryPalette.purple)
+            }
+        }
+        .chartYScale(domain: 0...powerCeiling)
+        .chartYAxis { axisMarks([0, powerCeiling / 2, powerCeiling]) }
+        .chartXScale(
+            domain: window,
+            range: .plotDimension(startPadding: Self.leadingInset, endPadding: Self.trailingInset)
+        )
         .chartXAxis {
             // Explicit ticks and explicit, `fixedSize` label content: the
             // automatic six-hour stride put a tick on the very edge of the
@@ -611,11 +835,75 @@ struct SummaryChart: View {
                 }
             }
         }
+        .frame(height: powerHeight)
+    }
+
+    /// Both plots' y axis: a solid hairline at each value, the number on the
+    /// **left** in a box of a fixed width — which is what keeps the two plots'
+    /// time axes on the same grid.
+    private func axisMarks(_ values: [Double]) -> some AxisContent {
+        AxisMarks(position: .leading, values: values) { value in
+            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.6))
+                .foregroundStyle(SummaryPalette.hairline)
+            AxisValueLabel {
+                Text(verbatim: SummaryChartCard.axisText(value.as(Double.self)))
+                    .font(.system(size: 9.5))
+                    .monospacedDigit()
+                    .foregroundStyle(SummaryPalette.muted)
+                    .fixedSize()
+                    .frame(width: SummaryChartCard.axisLabelWidth, alignment: .trailing)
+            }
+        }
+    }
+
+    /// `13`, not `13.0`, and `12.5` where a halved odd ceiling needs it.
+    static func axisText(_ value: Double?) -> String {
+        guard let value else { return "" }
+        return value == value.rounded() ? "\(Int(value))" : String(format: "%.1f", value)
     }
 }
 
-struct SummarySpan: Identifiable {
-    var start: Date
-    var end: Date
-    var id: Date { start }
+// MARK: - The legend
+
+/// One legend entry: a filled block for a bar series, a short rule for a line.
+struct SummaryLegendItem: Identifiable {
+    var color: Color
+    var text: String
+    var isLine: Bool
+    var id: String { text }
+
+    static func bar(_ color: Color, _ text: String) -> SummaryLegendItem {
+        SummaryLegendItem(color: color, text: text, isLine: false)
+    }
+
+    static func line(_ color: Color, _ text: String) -> SummaryLegendItem {
+        SummaryLegendItem(color: color, text: text, isLine: true)
+    }
+}
+
+/// The row of keys beside a plot's title. The swatch is the shape of the mark
+/// it stands for — a block for bars, a rule for the line — because a row of
+/// identical dots would need the words to be read before the plot can be.
+struct SummaryLegend: View {
+    let items: [SummaryLegendItem]
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ForEach(items) { item in
+                HStack(spacing: 4) {
+                    RoundedRectangle(cornerRadius: 1, style: .continuous)
+                        .fill(item.color)
+                        .frame(
+                            width: item.isLine ? 10 : 7,
+                            height: item.isLine ? 2.5 : 10
+                        )
+                    Text(item.text)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(SummaryPalette.muted)
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+            }
+        }
+    }
 }

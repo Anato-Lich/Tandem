@@ -241,6 +241,133 @@ public enum ChargeSessionBuilder {
         .sorted { $0.day > $1.day }
     }
 
+    // MARK: - The 24 h bins
+
+    /// The width of one bin of the summary window's 24 h chart: half an hour.
+    public static let binWidth: TimeInterval = 30 * 60
+
+    /// The last 24 h as fixed half-hour bins, oldest first.
+    ///
+    /// The grid is pinned to the clock: the **last** bin is the half hour `now`
+    /// falls in, so its left edge is a whole or a half hour and its right edge
+    /// is `now` itself, and the 47 before it run back from there. That is what
+    /// lets the bars be the same width and lets the hour labels land on real
+    /// clock hours; `downsample` cannot do it, because a `SeriesPoint` is a
+    /// reading at whatever uneven instant the skip rule produced one.
+    ///
+    /// Per bin:
+    ///
+    /// * **`percent`** is the **last reading inside the bin**. A bin with no
+    ///   readings carries the previous bin's figure forward — a pack that was
+    ///   at 90 % half an hour ago and has not been heard from since is still at
+    ///   about 90 % — and is `nil` only until the first reading of all. The
+    ///   carry is seeded from the newest reading *before* the window when there
+    ///   is one, so a store that has been running for a week does not open with
+    ///   a hole.
+    /// * **`state`** is the majority of the bin's readings **weighted by
+    ///   time**: each reading holds its state until the next reading (clipped
+    ///   to the bin's right edge), `external && isCharging` is `.charging`,
+    ///   `external && !isCharging` is `.mains`, and anything else is
+    ///   `.battery`. A tie — including a bin whose one reading sits on its very
+    ///   edge and so weighs nothing — goes to the last reading in the bin. A
+    ///   bin with **no** readings carries the previous bin's state forward,
+    ///   exactly as it carries the percent: a Mac that fell asleep on its
+    ///   charger at midnight was still on the charger at three, and the old
+    ///   rule — every silent bin is `.battery` — drew that night as a green
+    ///   discharge that never happened. Seeded, like the percent, from the
+    ///   newest reading before the window; `.battery` only when nothing at all
+    ///   precedes the bin. The power fields stay `nil` through the hole, so an
+    ///   unobserved stretch still contributes no watts to any plot.
+    /// * **`powerInW`** and **`systemLoadW`** are the plain means over the
+    ///   readings that carried a figure, and `nil` when none did.
+    ///
+    /// `readings` may be in any order and may run back further than the window;
+    /// everything outside it is only ever used to seed the carried percent.
+    public static func bins(
+        from readings: [HistoryReading],
+        device: String? = nil,
+        now: Date = Date(),
+        count: Int = 48,
+        calendar: Calendar = .current
+    ) -> [HistoryBin] {
+        guard count > 0 else { return [] }
+        let rows = readings
+            .filter { device == nil || $0.device == device }
+            .sorted { $0.timestamp < $1.timestamp }
+
+        // The half hour `now` is in, on the local clock rather than on the
+        // epoch: a 45-minute time zone (Kathmandu, the Chathams) still gets
+        // bins that start on a real half hour there.
+        let hour = calendar.dateInterval(of: .hour, for: now)?.start ?? now
+        let alignedNow = now.timeIntervalSince(hour) >= binWidth ? hour.addingTimeInterval(binWidth) : hour
+        let first = alignedNow.addingTimeInterval(-Double(count - 1) * binWidth)
+
+        // Bucket once; every row is looked at exactly twice.
+        var buckets: [[HistoryReading]] = Array(repeating: [], count: count)
+        var carried: Int?
+        var carriedState: HistoryBinState?
+        for row in rows {
+            if row.timestamp < first {
+                // Seeds both carries and nothing else: a reading from before
+                // the window is not a bin, it is what the window opens on.
+                carried = row.percent
+                carriedState = state(of: row)
+                continue
+            }
+            guard row.timestamp <= now else { continue }
+            let index = min(count - 1, Int(row.timestamp.timeIntervalSince(first) / binWidth))
+            buckets[index].append(row)
+        }
+
+        var result: [HistoryBin] = []
+        result.reserveCapacity(count)
+        for index in 0..<count {
+            let start = first.addingTimeInterval(Double(index) * binWidth)
+            let end = min(start.addingTimeInterval(binWidth), max(now, start))
+            let rows = buckets[index]
+            guard let last = rows.last else {
+                result.append(HistoryBin(start: start, percent: carried, state: carriedState ?? .battery))
+                continue
+            }
+            carried = last.percent
+
+            var weights: [HistoryBinState: TimeInterval] = [:]
+            for (offset, row) in rows.enumerated() {
+                let next = offset + 1 < rows.count ? rows[offset + 1].timestamp : end
+                weights[state(of: row), default: 0] += max(0, min(next, end).timeIntervalSince(row.timestamp))
+            }
+            let fallback = state(of: last)
+            let winner = weights
+                .sorted { lhs, rhs in
+                    if lhs.value != rhs.value { return lhs.value > rhs.value }
+                    return lhs.key == fallback          // a tie goes to the last reading
+                }
+                .first?.key ?? fallback
+            carriedState = winner
+
+            result.append(HistoryBin(
+                start: start,
+                percent: last.percent,
+                state: winner,
+                powerInW: mean(rows.compactMap(\.powerInW)),
+                systemLoadW: mean(rows.compactMap(\.systemLoadW))
+            ))
+        }
+        return result
+    }
+
+    /// `external && charging` → charging, `external` alone → mains, else
+    /// battery. An iPhone never produces `mains`: it does not report external
+    /// power without charging.
+    public static func state(of row: HistoryReading) -> HistoryBinState {
+        guard row.externalConnected else { return .battery }
+        return row.isCharging ? .charging : .mains
+    }
+
+    private static func mean(_ values: [Double]) -> Double? {
+        values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
+    }
+
     // MARK: - The chart series
 
     /// Reduce a run of readings to at most `limit` points by keeping the last

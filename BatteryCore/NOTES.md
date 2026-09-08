@@ -1159,7 +1159,7 @@ libimobiledevice chain along with it.
 
 ### 15.1 Schema
 
-`meta(key, value)` carries `version` (currently **4**, `HistoryStore.schemaVersion`)
+`meta(key, value)` carries `version` (currently **5**, `HistoryStore.schemaVersion`)
 and `last_prune`. Migration is a straight walk in `HistoryStore.migrate`,
 each step wrapped in one transaction:
 
@@ -1168,7 +1168,12 @@ each step wrapped in one transaction:
 * v2 → v3 (`migrateV2toV3`) adds `markers` — sleep/wake, §15.7;
 * v3 → v4 (`migrateV3toV4`) is a plain `ALTER TABLE readings ADD COLUMN
   system_load_w REAL`, for the summary window's sparkline of what the machine
-  itself was drawing (`PowerTelemetryData.SystemLoad`) at each reading.
+  itself was drawing (`PowerTelemetryData.SystemLoad`) at each reading;
+* v4 → v5 (`migrateV4toV5`) is the same move for `power_in_w`
+  (`PowerTelemetryData.SystemPowerIn`, `BatteryReading.systemPowerInW`) — what
+  the wall was putting in, which a device reports **whenever it is plugged in,
+  charging or not**, and which is the only honest input for the summary
+  window's power plot.
 
 A file newer than the running build is left alone; every column added since v1
 is nullable, so an old reader still works.
@@ -1177,7 +1182,8 @@ is nullable, so an old reader still works.
 readings(ts REAL, device TEXT, percent INT, is_charging INT, external INT,
          fully_charged INT, watts REAL, adapter_watts INT, raw_current_mah INT,
          raw_max_mah INT, design_mah INT, cycle_count INT, temperature_c REAL,
-         is_partial INT, transport TEXT, system_load_w REAL)  -- system_load_w: v4
+         is_partial INT, transport TEXT, system_load_w REAL,
+         power_in_w REAL)                     -- system_load_w: v4, power_in_w: v5
 CREATE INDEX idx_readings_device_ts ON readings (device, ts);
 
 devices(id TEXT PRIMARY KEY, kind TEXT, name TEXT, last_seen REAL)
@@ -1296,7 +1302,9 @@ pretty-printed, key-sorted, ISO-8601, `Data.write(.atomic)` — exactly like
                  "cyclesEstimate": 0.72, "minutesOnCharger": 250,
                  "averageDrawWatts": 1.4, "sampleCount": 145 },
       "week":   [ …up to seven DailyStat, today first… ],
-      "series": [ { "t": …, "percent": 28, "isCharging": false }, … ]
+      "series": [ { "t": …, "percent": 28, "isCharging": false }, … ],
+      "bins24h": [ { "start": …, "percent": 28, "state": "charging",
+                     "powerInW": 15.2, "systemLoadW": 2.4 }, … ]
     }
   ]
 }
@@ -1312,7 +1320,27 @@ otherwise — see `BatteryPlistParser` and §6.
 `series` is the last 24 h bucketed into at most **96 points** (15-minute
 resolution), taking the last reading of each bucket. Bucketing rather than
 "every n-th row" keeps the x-axis linear in time, which matters precisely
-because the skip rule makes the rows deliberately uneven.
+because the skip rule makes the rows deliberately uneven. It is still there for
+the widget, which draws the line it has always drawn.
+
+`bins24h` is the same 24 h on a **fixed half-hour grid**
+(`ChargeSessionBuilder.bins`, `HistoryStore.binCount` = 48), which is what the
+summary window's chart draws. The last bin is the half hour *now* falls in — so
+its left edge is a whole or a half hour and its right edge is now — and the 47
+before it run back from there. Per bin:
+
+* `percent` is the **last reading inside the bin**; a bin with no readings
+  carries the previous bin's figure forward, and is `null` only until the first
+  reading of all (the carry is seeded from the newest reading before the window
+  when there is one);
+* `state` is `battery` / `charging` / `mains` — `external && isCharging`,
+  `external && !isCharging`, or neither — taken as the **majority of the bin's
+  readings weighted by time**, each reading holding its state until the next one
+  and clipped to the bin's right edge. A tie goes to the last reading in the
+  bin; a bin with no readings at all reports `battery` and draws no power, so an
+  unobserved stretch cannot claim to have been charging;
+* `powerInW` and `systemLoadW` are the plain means over the readings that
+  carried a figure, `null` when none did.
 
 `health`, `cycleCount` and `temperatureC` come from the newest **full** row, so
 a phone that has only ever answered on the degraded tier reports them as `null`

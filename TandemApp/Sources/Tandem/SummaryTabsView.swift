@@ -13,6 +13,10 @@ struct SummaryTabsBody: View {
     var selection: DeviceKind = .mac
     var onSelect: (DeviceKind) -> Void = { _ in }
 
+    /// The panel's own inset, subtracted from the window width when a card
+    /// needs to know how wide its content will come out (`SummaryChartCard`).
+    static let bodyPadding: CGFloat = 18
+
     private var selected: SummaryDevice? {
         devices.first { $0.kind == selection } ?? devices.first
     }
@@ -32,7 +36,7 @@ struct SummaryTabsBody: View {
                 chartCard(presentation)
             }
         }
-        .padding(18)
+        .padding(Self.bodyPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(SummaryPalette.background)
     }
@@ -189,46 +193,17 @@ struct SummaryTabsBody: View {
     // MARK: The chart
 
     private func chartCard(_ presentation: SummaryPresentation) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                SummarySectionLabel(text: String(localized: "24 hours"))
-                Spacer(minLength: 8)
-                HStack(spacing: 4) {
-                    // A filled block rather than a dot: the legend has to match
-                    // the shaded span in the plot, not the line.
-                    RoundedRectangle(cornerRadius: 1, style: .continuous)
-                        .fill(SummaryPalette.amber)
-                        .frame(width: 7, height: 10)
-                    Text(String(localized: "charging"))
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(SummaryPalette.muted)
-                }
-            }
-            .padding(.horizontal, 4)
-            .padding(.bottom, 6)
-
-            if presentation.hasChart {
-                // No fixed height: the chart is whatever is left over, down to
-                // `SummaryChart.minimumHeight`.
-                SummaryChart(
-                    series: presentation.series,
-                    now: presentation.now,
-                    levelColor: presentation.levelColor,
-                    height: nil
-                )
-            } else {
-                Text(String(localized: "Collecting history…"))
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(SummaryPalette.muted)
-                    .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
-                    .padding(.horizontal, 4)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.top, 10)
-        .padding(.bottom, 6)
-        .frame(maxWidth: .infinity, maxHeight: presentation.hasChart ? .infinity : nil, alignment: .top)
-        .background(SummaryPalette.card)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        SummaryChartCard(
+            bins: presentation.bins,
+            now: presentation.now,
+            contentWidth: SummaryLayout.tabs.size.width
+                - 2 * Self.bodyPadding
+                - 2 * SummaryChartCard.horizontalPadding,
+            levelHeight: 150,
+            powerHeight: 92,
+            // The card is the floor of this window: it takes the room the list
+            // above it leaves over, and the level plot is what grows into it.
+            fillsHeight: presentation.hasChart
+        )
     }
 }

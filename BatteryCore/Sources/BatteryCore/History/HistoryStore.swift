@@ -17,8 +17,9 @@ public actor HistoryStore {
     /// Bumped whenever the schema changes; `migrate()` walks from whatever the
     /// file says up to this. v1 was `meta` + `readings`; v2 added `devices` and
     /// `sessions`; v3 added `markers` (sleep/wake, NOTES.md §15.7); v4 added
-    /// the nullable `readings.system_load_w`.
-    public static let schemaVersion = 4
+    /// the nullable `readings.system_load_w`; v5 the nullable
+    /// `readings.power_in_w`.
+    public static let schemaVersion = 5
 
     /// How many `system_load_w` samples `summary` carries for the sparkline.
     public static let systemLoadSeriesLimit = 12
@@ -29,6 +30,9 @@ public actor HistoryStore {
 
     /// The 24 h chart is capped at 15-minute resolution.
     public static let seriesPointLimit = 96
+
+    /// How many bins `DeviceHistory.bins24h` carries: 48 half hours, i.e. a day.
+    public static let binCount = 48
 
     public nonisolated let url: URL
     /// Raw rows older than this are deleted by `prune()`. 30 days.
@@ -136,6 +140,11 @@ public actor HistoryStore {
                 version = 4
                 try Self.writeVersion(database, version)
             }
+            if version == 4 {
+                try Self.migrateV4toV5(database)
+                version = 5
+                try Self.writeVersion(database, version)
+            }
             // A newer file than this build understands: leave it alone. Every
             // column added since is nullable, so the reads below still work.
         }
@@ -218,6 +227,19 @@ public actor HistoryStore {
         try database.execute("ALTER TABLE readings ADD COLUMN system_load_w REAL")
     }
 
+    /// v5: what the wall was putting in at each reading
+    /// (`PowerTelemetryData.SystemPowerIn`), for the summary window's power
+    /// chart — the only figure that says anything at all about a Mac that is
+    /// plugged in and *not* charging.
+    ///
+    /// The same shape as v4: one nullable `ALTER TABLE … ADD COLUMN`, no
+    /// default, nothing rewritten, so every row written before it reads back as
+    /// "unknown" rather than as a machine plugged into nothing, and the
+    /// migration costs the same whatever the file weighs.
+    private static func migrateV4toV5(_ database: SQLiteDatabase) throws {
+        try database.execute("ALTER TABLE readings ADD COLUMN power_in_w REAL")
+    }
+
     // MARK: - Recording
 
     /// Record one row per device present in the snapshot.
@@ -261,8 +283,8 @@ public actor HistoryStore {
             INSERT INTO readings
               (ts, device, percent, is_charging, external, fully_charged, watts, adapter_watts,
                raw_current_mah, raw_max_mah, design_mah, cycle_count, temperature_c, is_partial, transport,
-               system_load_w)
-            VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)
+               system_load_w, power_in_w)
+            VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17)
             """)
         defer { statement.finalize() }
         statement.bind(1, row.timestamp.timeIntervalSince1970)
@@ -281,6 +303,7 @@ public actor HistoryStore {
         statement.bind(14, row.isPartial)
         statement.bind(15, row.transport.rawValue)
         statement.bind(16, row.systemLoadW)
+        statement.bind(17, row.powerInW)
         try statement.step()
 
         // Keep `sessions` current. Only the stretch back to the last reading
@@ -557,7 +580,7 @@ public actor HistoryStore {
         let statement = try database.prepare("""
             SELECT ts, device, percent, is_charging, external, fully_charged, watts, adapter_watts,
                    raw_current_mah, raw_max_mah, design_mah, cycle_count, temperature_c, is_partial, transport,
-                   system_load_w
+                   system_load_w, power_in_w
             FROM readings
             WHERE device=?1 AND ts >= ?2 AND ts <= ?3
             ORDER BY ts ASC
@@ -584,7 +607,8 @@ public actor HistoryStore {
                 temperatureC: statement.optionalDouble(12),
                 isPartial: statement.bool(13),
                 transport: Transport(rawValue: statement.string(14) ?? "") ?? .local,
-                systemLoadW: statement.optionalDouble(15)
+                systemLoadW: statement.optionalDouble(15),
+                powerInW: statement.optionalDouble(16)
             ))
         }
         return result
@@ -594,7 +618,7 @@ public actor HistoryStore {
         let statement = try database.prepare("""
             SELECT ts, device, percent, is_charging, external, fully_charged, watts, adapter_watts,
                    raw_current_mah, raw_max_mah, design_mah, cycle_count, temperature_c, is_partial, transport,
-                   system_load_w
+                   system_load_w, power_in_w
             FROM readings WHERE device=?1 ORDER BY ts DESC LIMIT 1
             """)
         defer { statement.finalize() }
@@ -616,7 +640,8 @@ public actor HistoryStore {
             temperatureC: statement.optionalDouble(12),
             isPartial: statement.bool(13),
             transport: Transport(rawValue: statement.string(14) ?? "") ?? .local,
-            systemLoadW: statement.optionalDouble(15)
+            systemLoadW: statement.optionalDouble(15),
+            powerInW: statement.optionalDouble(16)
         )
     }
 
@@ -733,6 +758,16 @@ public actor HistoryStore {
             through: now,
             limit: Self.seriesPointLimit
         )
+        // The whole week's rows go in, not just the day's: everything before
+        // the first bin is used only to seed the carried percent, so a store
+        // that has been recording since Tuesday does not open with a hole.
+        let bins = ChargeSessionBuilder.bins(
+            from: window,
+            device: device,
+            now: now,
+            count: Self.binCount,
+            calendar: calendar
+        )
 
         return DeviceHistory(
             device: device,
@@ -748,7 +783,8 @@ public actor HistoryStore {
             today: stats.first { calendar.isDate($0.day, inSameDayAs: today) },
             week: stats,
             series: series,
-            systemLoadSeries: try systemLoadSeries(device: device)
+            systemLoadSeries: try systemLoadSeries(device: device),
+            bins24h: bins
         )
     }
 

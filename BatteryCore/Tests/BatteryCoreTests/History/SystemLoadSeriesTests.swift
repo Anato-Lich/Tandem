@@ -55,7 +55,9 @@ struct SystemLoadSeriesTests {
         }
 
         let store = HistoryStore(url: url)
-        #expect(try await store.storedSchemaVersion() == 4)
+        // Straight through v4 to whatever the build is on now — the walk in
+        // `migrate` runs every step it is behind, in one transaction.
+        #expect(try await store.storedSchemaVersion() >= 4)
         #expect(try await store.storedSchemaVersion() == HistoryStore.schemaVersion)
 
         // The pre-v4 row survived, and its new column reads back as *unknown*

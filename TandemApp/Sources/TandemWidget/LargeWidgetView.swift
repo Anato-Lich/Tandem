@@ -47,7 +47,8 @@ extension Color {
 ///
 /// ```
 ///  ╭────────────────────────────────╮
-///  │ ( ▭ ) −13 W │ ( ▮ ) 36/45 W    │  the medium tiles, verbatim
+///  │ ( ▭ ) −13 W │ ( ▮ ) 36/45 W    │  the medium tiles, verbatim,
+///  │ ▁▂▄███▆▅▃▂  │ ▃▅███▇▆▄▃▂       │  day strip and all
 ///  │ 90 %   4:19 │ 64 %  80 % · 14  │
 ///  ├────────────────────────────────┤
 ///  │ 24 HOURS          ● Mac ● iPh  │  one card, both devices
@@ -60,25 +61,37 @@ extension Color {
 ///  ╰────────────────────────────────╯
 /// ```
 ///
-/// The axes are the summary window's `SummaryChart` axes deliberately: last
-/// 24 h ending at *now*, values on the left, whole clock hours six apart, a
-/// hairline and a dot where the window ends. Two views of the same day that
+/// The axes are the summary window's `SummaryChartCard` axes deliberately:
+/// last 24 h ending at *now*, values on the left, whole clock hours six apart,
+/// a hairline and a dot where the window ends. Two views of the same day that
 /// disagreed about what the x axis meant would be worse than either alone.
+///
+/// The tiles' own day strips read the same file and are folded from the same
+/// bins, so the strip and the plot below it are the same day at two
+/// resolutions: twelve two-hour columns against ninety-six readings.
 struct LargeWidgetView: View {
     let mac: DevicePresentation
     let phone: DevicePresentation
     /// `nil`, or older than `HistorySummary.freshnessWindow`, and the card draws
-    /// its axes with nothing in them and says so.
+    /// its axes with nothing in them and says so — and the tiles above draw
+    /// their bare tracks, for the same reason and off the same test.
     let history: HistorySummary?
     var now: Date = Date()
+
+    /// Folded once here rather than handed in, because this family already
+    /// holds the whole summary: its chart needs the readings, and the tiles
+    /// need twelve columns of them.
+    private var bars: DayBars { DayBars(history: history, now: now) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                DeviceTileLink(device: mac)
+                DeviceTileLink(device: mac, bars: bars.mac)
                 TileDivider()
-                DeviceTileLink(device: phone)
+                DeviceTileLink(device: phone, bars: bars.phone)
             }
+            // The chart takes what is left: the tiles grew by a day strip, so
+            // the plot below them is that much shorter.
             .frame(height: DeviceTile.naturalHeight)
 
             ChartCard(
@@ -203,7 +216,7 @@ private struct ChartCard: View {
 
 /// Both devices' last 24 h in one plot, with the right-hand edge being **now**.
 ///
-/// Everything about the axes is taken from the approved `SummaryChart`: an
+/// Everything about the axes is taken from the approved `SummaryChartCard`: an
 /// explicit `0...100` y scale labelled 0 / 50 / 100 on the *left* over a dashed
 /// hairline grid, explicit whole-hour ticks six hours apart counted back from
 /// the hour `now` is in, and explicit plot insets so that no label — least of

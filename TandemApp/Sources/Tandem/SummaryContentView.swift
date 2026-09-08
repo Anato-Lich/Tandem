@@ -324,8 +324,15 @@ struct SummaryPresentation {
 
     // MARK: The chart
 
-    var series: [SeriesPoint] { history?.series ?? [] }
-    var hasChart: Bool { series.count >= 2 }
+    /// The 48 half-hour bins the chart draws (`DeviceHistory.bins24h`). The
+    /// older `series` is still in the summary file — the widget reads it — but
+    /// this window no longer draws from it: a bin is a fixed slot on the clock,
+    /// and that is what the approved chart needs (see `SummaryChartCard`).
+    var bins: [HistoryBin] { history?.bins24h ?? [] }
+
+    /// Two bins with a percent in them is the floor for a chart; below it the
+    /// card draws its axes and one sentence.
+    var hasChart: Bool { bins.filter { $0.percent != nil }.count >= 2 }
 }
 
 // MARK: - Wording

@@ -145,6 +145,42 @@
         }
       }
     },
+    "no contact since %@": {
+      "extractionState": "manual",
+      "comment": "Widget: the device stopped reporting; %@ is a short time of day.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no contact since %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "нет связи с %@"
+          }
+        }
+      }
+    },
+    "no data": {
+      "extractionState": "manual",
+      "comment": "Widget: this device has never been seen.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no data"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "нет данных"
+          }
+        }
+      }
+    },
     "now": {
       "extractionState": "manual",
       "comment": "Large widget: a charge session that is still running.",
@@ -159,6 +195,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "сейчас"
+          }
+        }
+      }
+    },
+    "on battery": {
+      "extractionState": "manual",
+      "comment": "Widget: running off the pack, with no wattage to show.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "on battery"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "от батареи"
           }
         }
       }

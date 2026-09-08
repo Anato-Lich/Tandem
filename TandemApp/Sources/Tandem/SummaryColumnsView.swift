@@ -233,28 +233,15 @@ struct SummaryColumn: View {
 
     // MARK: The 24 h chart
 
+    /// The card carries its own two titles and legends (`SummaryChartCard`),
+    /// so unlike the blocks above it there is no `SummaryCard` label over it.
     private var chartCard: some View {
-        SummaryCard(title: String(localized: "24 hours")) {
-            if presentation.hasChart {
-                SummaryChart(
-                    series: presentation.series,
-                    now: presentation.now,
-                    levelColor: presentation.levelColor,
-                    height: 110
-                )
-                .padding(.horizontal, 10)
-                .padding(.top, 10)
-                .padding(.bottom, 6)
-            } else {
-                // An axis with nothing under it is a worse answer than a
-                // sentence.
-                Text(String(localized: "Collecting history…"))
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(SummaryPalette.muted)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 12)
-            }
-        }
+        SummaryChartCard(
+            bins: presentation.bins,
+            now: presentation.now,
+            contentWidth: SummaryColumnsBody.columnWidth - 2 * SummaryChartCard.horizontalPadding,
+            levelHeight: 110,
+            powerHeight: 70
+        )
     }
 }
