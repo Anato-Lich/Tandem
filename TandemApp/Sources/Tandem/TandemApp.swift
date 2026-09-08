@@ -58,6 +58,11 @@ struct TandemApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
         .defaultPosition(.center)
+        // `tandem://` URLs are handled by `AppDelegate` alone. Without this a
+        // `Window` scene also claims every external event and re-presents
+        // itself for each one, which is the "window blinks on every widget
+        // click" the user saw (item 1a).
+        .handlesExternalEvents(matching: [])
         // The two-column layout's size, which is also the default setting; the
         // window itself resizes to `SummaryLayout.size` when the setting says
         // otherwise (`SummaryWindowView.WindowConfigurator`).
