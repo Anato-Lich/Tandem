@@ -43,7 +43,7 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: "Tandem"
         INFOPLIST_KEY_NSHumanReadableCopyright: ""
         MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "3"
+        CURRENT_PROJECT_VERSION: "4"
         # No /opt/homebrew/lib here any more: tools/bundle-dylibs.sh copies the
         # libimobiledevice/OpenSSL chain into Contents/Frameworks and rewrites
         # every install name to @rpath, so the bundle's own Frameworks
@@ -119,7 +119,7 @@ targets:
         GENERATE_INFOPLIST_FILE: "NO"
         INFOPLIST_FILE: Sources/TandemWidget/Info.plist
         MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "3"
+        CURRENT_PROJECT_VERSION: "4"
         SKIP_INSTALL: "YES"
         SWIFT_EMIT_LOC_STRINGS: "YES"
         # The widget gallery's sidebar takes its icon from the *extension*
@@ -128,7 +128,6 @@ targets:
         # byte-identical to the app's). Without it the sidebar row is the
         # generic placeholder plug. `Info.plist` names it in CFBundleIconName /
         # CFBundleIconFile, since GENERATE_INFOPLIST_FILE is off here.
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # Every Apple widget appex declares one of these (Batteries and Weather
         # name "WidgetBackground", Calendar and Notes "WidgetBackgroundColor");
         # Tandem's declared none, so anywhere the host needs a plate of its own
