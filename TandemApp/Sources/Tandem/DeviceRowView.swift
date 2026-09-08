@@ -71,6 +71,25 @@ struct DeviceRowView: View {
         String(localized: String.LocalizationValue(error.localizedKey))
     }
 
+    /// Hover text for the overdue glyph: when the phone last answered, how
+    /// long ago that was, and the last error if the monitor recorded one.
+    private func attentionTooltip(_ status: DeviceStatus) -> String {
+        let clock = status.lastSeen.formatted(date: .omitted, time: .shortened)
+        let ago = StatusFormatter.shortDuration(now.timeIntervalSince(status.lastSeen))
+        let calendar = Calendar.current
+        let when: String
+        if calendar.isDateInToday(status.lastSeen) {
+            when = String(format: String(localized: "Last seen today at %1$@ (%2$@ ago)"), clock, ago)
+        } else if calendar.isDateInYesterday(status.lastSeen) {
+            when = String(format: String(localized: "Last seen yesterday at %1$@ (%2$@ ago)"), clock, ago)
+        } else {
+            let day = status.lastSeen.formatted(date: .abbreviated, time: .shortened)
+            when = String(format: String(localized: "Last seen %1$@ (%2$@ ago)"), day, ago)
+        }
+        if let error { return when + "\n" + localizedErrorText(error) }
+        return when
+    }
+
     private func headerRow(_ status: DeviceStatus) -> some View {
         HStack(spacing: 6) {
             Image(systemName: symbolName)
@@ -80,11 +99,7 @@ struct DeviceRowView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
             if kind == .iphone, phoneNeedsAttention(status) {
-                if let error {
-                    warningGlyph.help(localizedErrorText(error))
-                } else {
-                    warningGlyph
-                }
+                warningGlyph.help(attentionTooltip(status))
             } else if status.reading.isCharging {
                 Image(systemName: "bolt.fill")
                     .font(.system(size: 10))

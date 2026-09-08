@@ -1275,6 +1275,36 @@
           }
         }
       }
+    },
+    "Last seen today at %1$@ (%2$@ ago)": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Последний ответ сегодня в %1$@ (%2$@ назад)"
+          }
+        }
+      }
+    },
+    "Last seen yesterday at %1$@ (%2$@ ago)": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Последний ответ вчера в %1$@ (%2$@ назад)"
+          }
+        }
+      }
+    },
+    "Last seen %1$@ (%2$@ ago)": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Последний ответ %1$@ (%2$@ назад)"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
