@@ -196,7 +196,7 @@ struct StatesSheet: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Color.black.opacity(0.55))
             widget
-                .frame(width: 360, height: 170)
+                .frame(width: 336, height: 161)
                 .background(
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
                         .fill(Color(white: 0.23))
@@ -246,10 +246,10 @@ struct RenderWidget {
         case "large":
             // The chart is the point of this family and it is drawn in the
             // colours a real widget gets on the desktop, so the large export is
-            // the one rendered dark; 360x376 is the large rect with the same
+            // the one rendered dark; 336x359 is the large rect with the same
             // 16 pt of framing the other exports use.
             render(LargeWidgetView(mac: mac, phone: phone, history: SampleHistory.make(now: now), now: now),
-                   size: CGSize(width: 360, height: 376), scale: 2, to: out, dark: true)
+                   size: CGSize(width: 336, height: 359), scale: 2, to: out, dark: true)
         default:
             var bars = DayBars(history: SampleHistory.make(now: now), now: now)
             if variant.hasSuffix("-charging") {
@@ -261,7 +261,7 @@ struct RenderWidget {
                 bars.phone = Self.landing(bars.phone, on: phone.percent)
             }
             render(MediumWidgetView(mac: mac, phone: phone, bars: bars),
-                   size: CGSize(width: 360, height: 170), scale: 3, to: out)
+                   size: CGSize(width: 336, height: 161), scale: 3, to: out)
         }
     }
 }

@@ -50,7 +50,7 @@ struct DevicePresentation {
         /// The number is what the wall is carrying, not what the pack is
         /// taking, and the colour is the one the `mains` bars are drawn in.
         case plugged
-        /// Secondary: a discharge figure, "on battery", "silent since
+        /// Secondary: a discharge figure, "on battery", "no contact
         /// 14:32", "no data". Nothing here is a flow of power.
         case plain
     }
@@ -58,6 +58,11 @@ struct DevicePresentation {
     /// The line beside the ring, resolved. Nil only when there is genuinely
     /// nothing to say; every state in the approved matrix says something.
     let topText: String?
+    /// The same line with the unit dropped ("135/140" for "135/140 W"), used
+    /// only when the full string will not fit beside the ring: a three-digit
+    /// pair on a 140 W brick is wider than half a medium widget. Nil when
+    /// there is nothing to drop.
+    let topTextCompact: String?
     let topKind: TopLineKind
 
     /// `DeviceStatus.isSilent(now:)`: we have been *trying and failing* to read
@@ -77,7 +82,7 @@ struct DevicePresentation {
     let lastSeen: Date?
 
     /// The moment the current run of failures began — what a silent tile writes
-    /// in both of its slots ("silent since 14:32" over "14:32"). Nil unless we
+    /// in both of its slots ("no contact" over "14:32"). Nil unless we
     /// are failing.
     let unreachableSince: Date?
 
@@ -130,6 +135,7 @@ struct DevicePresentation {
             lastSeen = nil
             unreachableSince = nil
             topText = Self.noDataLabel
+            topTextCompact = nil
             topKind = .plain
             return
         }
@@ -150,7 +156,8 @@ struct DevicePresentation {
 
         timeLine = Self.timeLine(status: status, now: now, age: silent ? silence : nil)
 
-        let power = Self.powerLine(kind: kind, status: status)
+        let power = Self.powerLine(kind: kind, status: status)?.full
+        let powerCompact = Self.powerLine(kind: kind, status: status)?.compact
         powerText = power
         let plugged = reading.externalConnected && !reading.isCharging
         showsPlugGlyph = plugged && power != nil
@@ -158,24 +165,28 @@ struct DevicePresentation {
         // The top line, one state at a time, in the order of the approved
         // matrix (docs/design/widget/StatesMac, StatesPhone).
         if silent {
-            topText = Self.noContactText(silentAt)
+            topText = Self.noContactLabel
+            topTextCompact = nil
             topKind = .plain
         } else if reading.isCharging {
             topText = power
+            topTextCompact = powerCompact
             topKind = power == nil ? .plain : .charging
         } else if plugged {
             topText = power
+            topTextCompact = powerCompact
             topKind = power == nil ? .plain : .plugged
         } else {
             // A Mac says what it is drawing; a phone's discharge wattage is
             // deliberately never shown, and a partial Mac reading has no honest
             // figure either. Both then say what they *are* doing.
             topText = power ?? Self.onBatteryLabel
+            topTextCompact = nil
             topKind = .plain
         }
 
         // A silent tile's bottom-right is the moment it went quiet, so the two
-        // halves of the tile agree: "silent since 14:32" over "14:32".
+        // halves of the tile agree: "no contact" over "14:32".
         statusText = silent
             ? Self.clock(silentAt)
             : Self.statusText(status: status, now: now)
@@ -211,7 +222,8 @@ struct DevicePresentation {
     /// Watts as one short string. Whole watts throughout — a tenth of a watt
     /// has never changed anybody's mind, and the tile has better uses for the
     /// width.
-    private static func powerLine(kind: DeviceKind, status: DeviceStatus) -> String? {
+    /// The wattage line and, where one exists, a narrower spelling of it.
+    private static func powerLine(kind: DeviceKind, status: DeviceStatus) -> (full: String, compact: String?)? {
         let reading = status.reading
         let adapter = (reading.adapterWatts ?? 0) > 0 ? reading.adapterWatts : nil
 
@@ -224,14 +236,16 @@ struct DevicePresentation {
             switch (into, adapter) {
             case let (into?, adapter?):
                 // "13/140 W" — coming out of the wall over what is available.
-                return "\(Int(into.rounded()))/\(adapter) W"
+                // The unit is the first thing to go when the pair runs wide.
+                let pair = "\(Int(into.rounded()))/\(adapter)"
+                return ("\(pair) W", pair)
             case let (into?, nil):
-                return "\(Int(into.rounded())) W"
+                return ("\(Int(into.rounded())) W", nil)
             case let (nil, adapter?):
                 // Nothing measurable, so the number is what the brick offers
                 // rather than what is flowing. An iPhone left on the wire past
                 // 100 % is the usual way to see it: "45 W".
-                return "\(adapter) W"
+                return ("\(adapter) W", nil)
             case (nil, nil):
                 return nil
             }
@@ -242,13 +256,13 @@ struct DevicePresentation {
             // On battery: what the machine is drawing. `SystemLoad` is the
             // real figure; Amperage x Voltage is the fallback.
             if let load = reading.systemLoadW {
-                return "\(minus)\(Int(load.rounded())) W"
+                return ("\(minus)\(Int(load.rounded())) W", nil)
             }
             // A partial reading carries 0 W, which is a lie, not a reading.
             guard !reading.isPartial else { return nil }
             let watts = reading.batteryPowerW
             let sign = watts < 0 ? minus : ""
-            return "\(sign)\(Int(abs(watts).rounded())) W"
+            return ("\(sign)\(Int(abs(watts).rounded())) W", nil)
         case .iphone:
             // The phone's discharge wattage is deliberately not shown.
             return nil
@@ -302,16 +316,14 @@ struct DevicePresentation {
         String(localized: "no data", comment: "Widget: this device has never been seen.")
     }
 
-    /// `silent since 14:32` — a device we have been failing to reach for longer
-    /// than `DeviceStatus.silenceWindow`, timed from the first of those
-    /// failures. The time, not the age: "since 14:32" is checkable
-    /// against a clock and "12 min" goes stale the moment it is drawn.
-    static func noContactText(_ date: Date) -> String {
-        String(
-            format: String(localized: "silent since %@",
-                           comment: "Widget: the device stopped reporting; %@ is a short time of day."),
-            clock(date)
-        )
+    /// `no contact` — a device we have been failing to reach for longer than
+    /// `DeviceStatus.silenceWindow`. The moment it went quiet is the tile's
+    /// bottom-right slot, so the top line does not repeat it: "silent since
+    /// 14:32" over "14:32" said the same thing twice and was the one string
+    /// too wide for half a medium widget.
+    static var noContactLabel: String {
+        String(localized: "no contact",
+               comment: "Widget: the device has stopped answering; the clock time is in the bottom-right slot.")
     }
 
     /// The locale's own short clock, so a 12-hour locale gets `2:32 PM`.

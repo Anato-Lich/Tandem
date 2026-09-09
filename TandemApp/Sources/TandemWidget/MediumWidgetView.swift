@@ -21,7 +21,7 @@ import SwiftUI
 /// | charging | `62/140 W`, amber | `80 % · 27 min` |
 /// | on battery | `−13 W` / `on battery` | `4:19` |
 /// | on the wall, holding | 🔌 `13/140 W`, blue | `charged` / `on hold` |
-/// | silent > 10 min | `silent since 14:32` | `14:32` |
+/// | silent > 10 min | `no contact` | `14:32` |
 /// | never seen | `no data` | — |
 ///
 /// It lives on its own rather than inside `MediumWidgetView` because the large
@@ -95,20 +95,32 @@ struct DeviceTile: View {
     /// The one secondary line, centred against the ring. Colour carries the
     /// meaning: amber is power going into the pack, blue is power the wall is
     /// carrying and the pack is not taking, and everything else is quiet.
+    ///
+    /// It is drawn at its full size wherever it fits. Three
+    /// digits over three ("135/140 W" on a 140 W brick) is wider than half a
+    /// medium widget, so rather than truncate it to "135/140…" the unit is
+    /// dropped first and only then is the type allowed to shrink.
     @ViewBuilder
     private var topLine: some View {
         if let text = device.topText {
-            Self.label(text, plug: device.showsPlugGlyph)
-                .font(.system(size: Self.topSize, weight: Self.weight(device.topKind)))
-                .monospacedDigit()
-                .foregroundStyle(Self.style(device.topKind))
-                .lineLimit(1)
-                // Only "silent since 14:32" ever needs to shrink; every
-                // power line fits at full size beside the ring, and the user
-                // wants those read at the size the mock-up says.
-                .minimumScaleFactor(device.topKind == .plain ? 0.6 : 1.0)
-                .fixedSize(horizontal: false, vertical: true)
+            ViewThatFits(in: .horizontal) {
+                styledTop(text)
+                if let compact = device.topTextCompact {
+                    styledTop(compact)
+                }
+                styledTop(text, floor: device.topKind == .plain ? 0.6 : 0.8)
+            }
         }
+    }
+
+    private func styledTop(_ text: String, floor: CGFloat = 1) -> some View {
+        Text(text)
+            .font(.system(size: Self.topSize, weight: Self.weight(device.topKind)))
+            .monospacedDigit()
+            .foregroundStyle(Self.style(device.topKind))
+            .lineLimit(1)
+            .minimumScaleFactor(floor)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private static func weight(_ kind: DevicePresentation.TopLineKind) -> Font.Weight {

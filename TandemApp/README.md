@@ -189,7 +189,7 @@ them (`docs/design/widget/StatesMac.dc.html`, `StatesPhone.dc.html`;
 | charging | `62/140 W`, amber semibold | `80 % · 27 min` (`80 % · —` before the estimator has an ETA, `charged` once past 80 %) |
 | on battery | `−13 W` on the Mac, `on battery` on the phone, both secondary | `4:19` |
 | plugged in, not charging | `powerplug` glyph + `13/140 W` in blue semibold (an iPhone left on the wire past 100 % reads `45 W`) | `charged` at/above 80 % or full, else `on hold` |
-| silent (failing for > 10 min, ≥ 2 attempts) | `silent since 14:32` | `14:32` |
+| silent (failing for > 10 min, ≥ 2 attempts) | `no contact` | `14:32` |
 | never seen | `no data` | *(nothing)* |
 
 The watts are always the honest "in / available" pair and never a measurement of
@@ -207,13 +207,13 @@ A **silent** device — one we have been trying and failing to read for over ten
 minutes, over at least two attempts (`DeviceStatus.isSilent(now:)`, the same
 rule the popover row uses) — is drawn at 45 % opacity *except* for its
 exclamation badge, which is the one mark on the widget whose job is to be
-noticed. The clock in `silent since 14:32` is `unreachableSince`, the moment
+noticed. The clock in the bottom-right slot is `unreachableSince`, the moment
 the failures started, not `lastSeen`: a stale reading on its own never dims
 anything, because the phone is deliberately polled every 2–5 minutes and not at
 all while the display sleeps (NOTES.md §14.8). A device that has never been seen
 has no level at all: the percent is an em dash and the ring is drawn as a bare
 track, never `0 %` with a dot of red.
-`min`, `charged`, `on hold`, `on battery`, `no data` and `silent since %@`
+`min`, `charged`, `on hold`, `on battery`, `no data` and `no contact`
 are the translated tokens (`Sources/TandemWidget/Localizable.xcstrings`,
 en + ru); everything else on the widget is a number.
 

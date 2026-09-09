@@ -217,20 +217,13 @@
         }
       }
     },
-    "silent since %@": {
-      "comment": "Widget: we have been failing to reach the device; %@ is a short time of day.",
-      "extractionState": "manual",
+    "no contact": {
+      "comment": "Widget: the device has stopped answering; the clock time is in the bottom-right slot.",
       "localizations": {
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "тишина с %@"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "silent since %@"
+            "value": "нет связи"
           }
         }
       }
