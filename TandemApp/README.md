@@ -186,9 +186,9 @@ them (`docs/design/widget/StatesMac.dc.html`, `StatesPhone.dc.html`;
 
 | state | beside the ring | bottom right |
 | --- | --- | --- |
-| charging | `62/140 W`, amber semibold | `80 % · 27 min` (`80 % · —` before the estimator has an ETA, `charged` once past 80 %) |
-| on battery | `−13 W` on the Mac, `on battery` on the phone, both secondary | `4:19` |
-| plugged in, not charging | `powerplug` glyph + `13/140 W` in blue semibold (an iPhone left on the wire past 100 % reads `45 W`) | `charged` at/above 80 % or full, else `on hold` |
+| charging | `62/140W`, amber semibold | `80 % · 27 min` (`80 % · —` before the estimator has an ETA, `charged` once past 80 %) |
+| on battery | `−13W` on the Mac, `on battery` on the phone, both secondary | `4:19` |
+| plugged in, not charging | `powerplug` glyph + `13/140W` in blue semibold (an iPhone left on the wire past 100 % reads `45W`) | `charged` at/above 80 % or full, else `on hold` |
 | silent (failing for > 10 min, ≥ 2 attempts) | `no contact` | `14:32` |
 | never seen | `no data` | *(nothing)* |
 
@@ -392,8 +392,8 @@ automated and has to be done by hand.
   percent, a thin progress bar (green / amber-while-charging / red
   below 15%), and three telemetry columns: **system** (what the
   machine is drawing — `PowerTelemetryData.SystemLoad`, `13 W` plugged in,
-  `−13 W` on battery, blank for an iPhone on battery), **adapter**
-  (`13/140 W` — `SystemPowerIn` over `AdapterDetails.Watts`, with the orange
+  `−13W` on battery, blank for an iPhone on battery), **adapter**
+  (`13/140W` — `SystemPowerIn` over `AdapterDetails.Watts`, with the orange
   bolt only while actually charging, an em dash on battery), and
   **time** (ETA-to-80% while charging, time-left otherwise). The system column
   is why a plugged-in Mac no longer reads "0 W": battery current is 0 there

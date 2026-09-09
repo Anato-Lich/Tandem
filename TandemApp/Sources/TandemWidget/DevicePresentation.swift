@@ -23,8 +23,8 @@ struct DevicePresentation {
     /// Beside the ring. One compact "into / available" line:
     /// `62/140 W` charging off a 140 W brick, `13/140 W` plugged in and not
     /// charging (the wall is still carrying the machine — `SystemPowerIn`),
-    /// `140 W` (with `showsPlugGlyph`) when only the brick's rating is known,
-    /// `−13 W` on battery. Nil for an iPhone on battery, whose discharge
+    /// `140W` (with `showsPlugGlyph`) when only the brick's rating is known,
+    /// `−13W` on battery. Nil for an iPhone on battery, whose discharge
     /// wattage is deliberately never shown, and nil whenever there is no
     /// wattage to report.
     let powerText: String?
@@ -58,11 +58,12 @@ struct DevicePresentation {
     /// The line beside the ring, resolved. Nil only when there is genuinely
     /// nothing to say; every state in the approved matrix says something.
     let topText: String?
-    /// The same line with the unit dropped ("135/140" for "135/140 W"), used
-    /// only when the full string will not fit beside the ring: a three-digit
-    /// pair on a 140 W brick is wider than half a medium widget. Nil when
-    /// there is nothing to drop.
-    let topTextCompact: String?
+    /// Narrower spellings of the same line, widest first, for the rare case
+    /// where even the tight form will not fit beside the ring. The tile writes
+    /// wattage closed up (`132/140W`, the way Apple names its own bricks)
+    /// because the space before the unit was the couple of points that made a
+    /// three-digit pair overflow half a medium widget.
+    let topTextFallbacks: [String]
     let topKind: TopLineKind
 
     /// `DeviceStatus.isSilent(now:)`: we have been *trying and failing* to read
@@ -135,7 +136,7 @@ struct DevicePresentation {
             lastSeen = nil
             unreachableSince = nil
             topText = Self.noDataLabel
-            topTextCompact = nil
+            topTextFallbacks = []
             topKind = .plain
             return
         }
@@ -157,7 +158,7 @@ struct DevicePresentation {
         timeLine = Self.timeLine(status: status, now: now, age: silent ? silence : nil)
 
         let power = Self.powerLine(kind: kind, status: status)?.full
-        let powerCompact = Self.powerLine(kind: kind, status: status)?.compact
+        let powerFallbacks = Self.powerLine(kind: kind, status: status)?.fallbacks ?? []
         powerText = power
         let plugged = reading.externalConnected && !reading.isCharging
         showsPlugGlyph = plugged && power != nil
@@ -166,22 +167,22 @@ struct DevicePresentation {
         // matrix (docs/design/widget/StatesMac, StatesPhone).
         if silent {
             topText = Self.noContactLabel
-            topTextCompact = nil
+            topTextFallbacks = []
             topKind = .plain
         } else if reading.isCharging {
             topText = power
-            topTextCompact = powerCompact
+            topTextFallbacks = powerFallbacks
             topKind = power == nil ? .plain : .charging
         } else if plugged {
             topText = power
-            topTextCompact = powerCompact
+            topTextFallbacks = powerFallbacks
             topKind = power == nil ? .plain : .plugged
         } else {
             // A Mac says what it is drawing; a phone's discharge wattage is
             // deliberately never shown, and a partial Mac reading has no honest
             // figure either. Both then say what they *are* doing.
             topText = power ?? Self.onBatteryLabel
-            topTextCompact = nil
+            topTextFallbacks = []
             topKind = .plain
         }
 
@@ -223,7 +224,7 @@ struct DevicePresentation {
     /// has never changed anybody's mind, and the tile has better uses for the
     /// width.
     /// The wattage line and, where one exists, a narrower spelling of it.
-    private static func powerLine(kind: DeviceKind, status: DeviceStatus) -> (full: String, compact: String?)? {
+    private static func powerLine(kind: DeviceKind, status: DeviceStatus) -> (full: String, fallbacks: [String])? {
         let reading = status.reading
         let adapter = (reading.adapterWatts ?? 0) > 0 ? reading.adapterWatts : nil
 
@@ -238,14 +239,14 @@ struct DevicePresentation {
                 // "13/140 W" — coming out of the wall over what is available.
                 // The unit is the first thing to go when the pair runs wide.
                 let pair = "\(Int(into.rounded()))/\(adapter)"
-                return ("\(pair) W", pair)
+                return ("\(pair)W", [pair])
             case let (into?, nil):
-                return ("\(Int(into.rounded())) W", nil)
+                return ("\(Int(into.rounded()))W", [])
             case let (nil, adapter?):
                 // Nothing measurable, so the number is what the brick offers
                 // rather than what is flowing. An iPhone left on the wire past
                 // 100 % is the usual way to see it: "45 W".
-                return ("\(adapter) W", nil)
+                return ("\(adapter)W", [])
             case (nil, nil):
                 return nil
             }
@@ -256,13 +257,13 @@ struct DevicePresentation {
             // On battery: what the machine is drawing. `SystemLoad` is the
             // real figure; Amperage x Voltage is the fallback.
             if let load = reading.systemLoadW {
-                return ("\(minus)\(Int(load.rounded())) W", nil)
+                return ("\(minus)\(Int(load.rounded()))W", [])
             }
             // A partial reading carries 0 W, which is a lie, not a reading.
             guard !reading.isPartial else { return nil }
             let watts = reading.batteryPowerW
             let sign = watts < 0 ? minus : ""
-            return ("\(sign)\(Int(abs(watts).rounded())) W", nil)
+            return ("\(sign)\(Int(abs(watts).rounded()))W", [])
         case .iphone:
             // The phone's discharge wattage is deliberately not shown.
             return nil

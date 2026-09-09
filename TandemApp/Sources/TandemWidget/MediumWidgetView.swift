@@ -18,9 +18,9 @@ import SwiftUI
 ///
 /// | state | beside the ring | bottom right |
 /// | --- | --- | --- |
-/// | charging | `62/140 W`, amber | `80 % · 27 min` |
-/// | on battery | `−13 W` / `on battery` | `4:19` |
-/// | on the wall, holding | 🔌 `13/140 W`, blue | `charged` / `on hold` |
+/// | charging | `62/140W`, amber | `80 % · 27 min` |
+/// | on battery | `−13W` / `on battery` | `4:19` |
+/// | on the wall, holding | 🔌 `13/140W`, blue | `charged` / `on hold` |
 /// | silent > 10 min | `no contact` | `14:32` |
 /// | never seen | `no data` | — |
 ///
@@ -53,7 +53,7 @@ struct DeviceTile: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center, spacing: 10) {
+            HStack(alignment: .center, spacing: 8) {
                 ring
                 topLine.opacity(device.dimming)
                 Spacer(minLength: 0)
@@ -97,16 +97,19 @@ struct DeviceTile: View {
     /// carrying and the pack is not taking, and everything else is quiet.
     ///
     /// It is drawn at its full size wherever it fits. Three
-    /// digits over three ("135/140 W" on a 140 W brick) is wider than half a
-    /// medium widget, so rather than truncate it to "135/140…" the unit is
-    /// dropped first and only then is the type allowed to shrink.
+    /// digits over three on a 140 W brick only fits because the tile writes
+    /// wattage closed up ("135/140W"); if even that runs out of room the unit
+    /// goes, and only then is the type allowed to shrink.
     @ViewBuilder
     private var topLine: some View {
         if let text = device.topText {
             ViewThatFits(in: .horizontal) {
                 styledTop(text)
-                if let compact = device.topTextCompact {
-                    styledTop(compact)
+                if device.topTextFallbacks.count > 0 {
+                    styledTop(device.topTextFallbacks[0])
+                }
+                if device.topTextFallbacks.count > 1 {
+                    styledTop(device.topTextFallbacks[1])
                 }
                 styledTop(text, floor: device.topKind == .plain ? 0.6 : 0.8)
             }
