@@ -65,11 +65,19 @@ final class WidgetBridge {
     /// nothing. The file is still rewritten every poll; only the cross-process
     /// reload is skipped.
     private var lastReloadedSnapshot: TandemSnapshot?
+    /// A change that arrived inside the throttle window and is waiting for it
+    /// to end. Without this a reload was simply dropped and the widget kept
+    /// its stale entry until the *next* poll produced another change — a
+    /// device appearing at launch could sit as "no data" for a whole cycle.
+    private var pendingReload: Task<Void, Never>?
+    /// The newest snapshot handed to `publish`, which is also what is on disk.
+    private var latestWritten: TandemSnapshot?
 
     /// Write, then (at most once per `reloadThrottle`) ask WidgetKit to redraw.
     /// The write always happens — dropping it would leave the widget showing an
     /// older reading than the file already on disk.
     func publish(_ snapshot: TandemSnapshot) async {
+        latestWritten = snapshot
         do {
             try await store.write(snapshot)
         } catch {
@@ -78,17 +86,54 @@ final class WidgetBridge {
         }
 
         let now = Date()
-        if let lastReload, now.timeIntervalSince(lastReload) < Self.reloadThrottle { return }
+        guard Self.materiallyChanged(from: lastReloadedSnapshot, to: snapshot) else { return }
+
+        // A device appearing or disappearing is worth interrupting the
+        // throttle for: at launch the Mac is read from IOKit in a millisecond
+        // and the phone takes a poll or two, and the gap between them is
+        // exactly when somebody looks at the widget.
+        let appeared = Self.appearedOrVanished(from: lastReloadedSnapshot, to: snapshot)
+        if !appeared, let lastReload, now.timeIntervalSince(lastReload) < Self.reloadThrottle {
+            // Hold it rather than drop it: the widget redraws the moment the
+            // window is up, not at whatever the next material change happens
+            // to be.
+            let wait = Self.reloadThrottle - now.timeIntervalSince(lastReload)
+            pendingReload?.cancel()
+            pendingReload = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(wait))
+                guard !Task.isCancelled else { return }
+                await self?.flushPendingReload()
+            }
+            return
+        }
         // Two gates, not one: at most one reload per 30 s *and* only when the
         // widget would actually draw something different. A poll that comes
         // back with the same percent, the same plug state and the same watts
         // has nothing to show, and the countdown to 80 % now runs off
         // `etaTo80At` inside the extension, so it does not need us either.
-        guard Self.materiallyChanged(from: lastReloadedSnapshot, to: snapshot) else { return }
+        pendingReload?.cancel()
+        pendingReload = nil
         lastReload = now
         lastReloadedSnapshot = snapshot
         WidgetCenter.shared.reloadAllTimelines()
-        log.debug("reloaded widget timelines")
+        log.debug("reloaded widget timelines\(appeared ? " (device appeared)" : "")")
+    }
+
+    /// The deferred half of the throttle: the newest snapshot is already on
+    /// disk, so this only has to tell WidgetKit to read it again.
+    private func flushPendingReload() {
+        pendingReload = nil
+        lastReload = Date()
+        lastReloadedSnapshot = latestWritten
+        WidgetCenter.shared.reloadAllTimelines()
+        log.debug("reloaded widget timelines (deferred)")
+    }
+
+    /// Did a device show up or go away entirely? That is the one change the
+    /// throttle does not get to delay.
+    static func appearedOrVanished(from old: TandemSnapshot?, to new: TandemSnapshot) -> Bool {
+        guard let old else { return true }
+        return (old.mac == nil) != (new.mac == nil) || (old.phone == nil) != (new.phone == nil)
     }
 
     /// Would the widget draw differently? Percent, charging/plugged state, a
