@@ -6,6 +6,8 @@ enum Fixture: String, CaseIterable {
     case iphoneChargingUSB = "iphone-charging-usb"
     case iphoneChargingWiFi = "iphone-charging-wifi"
     case iphoneDischargingWiFi = "iphone-discharging-wifi"
+    /// iOS 27: no AppleRawCurrentCapacity/AppleRawMaxCapacity, mAh only under BatteryData.
+    case iphone27ChargingWiFi = "iphone27-charging-wifi"
     case macDischarging = "mac-discharging"
     /// A Mac sitting on a 140 W brick with `Amperage == 0`: the reading where
     /// battery current says nothing and only `PowerTelemetryData` does.

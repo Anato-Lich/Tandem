@@ -2,7 +2,9 @@ import Foundation
 
 /// Derived numbers for one device at one instant.
 public struct ChargeEstimate: Sendable, Codable, Equatable {
-    /// Seconds until the pack reaches 80 %, or nil when not meaningfully charging.
+    /// Seconds until the pack reaches its charge target (80 %, then 100 % once
+    /// past 80 -- `ChargeEstimator.targetPercent`), or nil when not meaningfully
+    /// charging. Named for the 80 % it started as; the snapshot keys keep it.
     public var etaTo80: TimeInterval?
     /// Seconds until empty, or nil when charging / current too small to trust.
     public var timeToEmpty: TimeInterval?
@@ -96,9 +98,12 @@ public struct ChargeEstimator: Sendable, Equatable {
 
         if reading.isCharging {
             if smoothed >= minimumUsableCurrentMA,
-               reading.percent < 80,
+               reading.percent < 100, !reading.fullyCharged,
                reading.rawMaxMAh > 0 {
-                let targetMAh = 0.8 * Double(reading.rawMaxMAh)
+                // Linear: past 80 % the charger tapers, so the 100 % figure
+                // runs short and corrects itself poll by poll.
+                let target = Double(targetPercent(for: reading.percent)) / 100
+                let targetMAh = target * Double(reading.rawMaxMAh)
                 let deficitMAh = targetMAh - Double(reading.rawCurrentMAh)
                 if deficitMAh > 0 {
                     estimate.etaTo80 = deficitMAh / smoothed * 3600.0
@@ -115,6 +120,9 @@ public struct ChargeEstimator: Sendable, Equatable {
         }
         return estimate
     }
+
+    /// What the charge ETA counts towards: 80 %, and 100 % once past it.
+    public static func targetPercent(for percent: Int) -> Int { percent < 80 ? 80 : 100 }
 
     /// The device's own minutes-to-empty, when we trust it.
     ///

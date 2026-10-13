@@ -61,7 +61,7 @@ public enum StatusFormatter {
         }
 
         if let eta = status.etaTo80 {
-            parts.append("80 % in \(shortDuration(eta, units: .english))")
+            parts.append("\(status.chargeTarget) % in \(shortDuration(eta, units: .english))")
         }
         if let empty = status.timeToEmpty {
             parts.append("\(clockDuration(empty)) left")

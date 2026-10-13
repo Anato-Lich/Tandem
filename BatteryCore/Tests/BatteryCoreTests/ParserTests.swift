@@ -47,6 +47,23 @@ struct ParserTests {
         #expect(usb == wifi)
     }
 
+    @Test("iOS 27 dump without AppleRaw* keys reads mAh from BatteryData, so the ETA survives")
+    func iOS27Charging() throws {
+        let reading = try BatteryPlistParser.parseIPhone(Fixture.iphone27ChargingWiFi.data, timestamp: referenceDate)
+        #expect(reading.isPartial == false)
+        #expect(reading.percent == 75)
+        #expect(reading.rawCurrentMAh == 3694)
+        #expect(reading.rawMaxMAh == 4973)
+        #expect(reading.designMAh == 4768)
+        #expect(reading.instantAmperageMA == 2590)
+        #expect(reading.cycleCount == 41)
+        #expect(reading.adapterWatts == 30)
+        #expect(reading.systemPowerInW == 12.103)
+        #expect(reading.systemLoadW == 0.971)
+        let estimate = ChargeEstimator.estimate(for: reading, smoothedCurrentMA: 2590)
+        #expect(estimate.etaTo80 != nil)
+    }
+
     // MARK: - iPhone, discharging
 
     @Test("iPhone discharging fixture decodes, including the negative current")

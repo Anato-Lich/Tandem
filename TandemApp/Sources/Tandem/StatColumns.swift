@@ -122,14 +122,14 @@ enum DeviceStatColumns {
         )
     }
 
-    /// Column 3: charging → time to 80 % (counted down from the absolute
+    /// Column 3: charging → time to 80 %, then to 100 % (counted down from the absolute
     /// deadline `etaTo80At`, not from the ETA as it stood at the last poll);
     /// discharging → time left, `h:mm` on the Mac and `h min` on the iPhone.
     static func time(_ status: DeviceStatus, kind: DeviceKind, now: Date) -> StatColumn {
         let reading = status.reading
 
         if reading.isCharging {
-            let caption = String(localized: "to 80 %")
+            let caption = status.chargeTarget < 100 ? String(localized: "to 80 %") : String(localized: "to 100 %")
             guard let remaining = status.timeTo80(now: now) else { return .unknown(caption) }
             // Past the deadline (or within half a minute of it) the target is
             // met; a "0 min", or worse a negative, would be a countdown lying

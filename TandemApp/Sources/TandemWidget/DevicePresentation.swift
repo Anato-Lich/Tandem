@@ -198,11 +198,9 @@ struct DevicePresentation {
     /// Compact by design: no "in"/"через", just the numbers, except for the
     /// three states with nothing numeric to say (see below).
     ///
-    /// - Charging: `80 % · 14 min`, or `80 % · —` while the estimator has no
-    ///   ETA yet and the pack is still under 80 %. Once the pack has passed
-    ///   80 % the "eta to 80" target is moot (`ChargeEstimator` stops
-    ///   producing one), so this reads `chargedLabel` instead of a dangling
-    ///   em dash.
+    /// - Charging: `80 % · 14 min` under 80 %, `100 % · 40 min` past it, or
+    ///   `80 % · —` / `100 % · —` while the estimator has no ETA yet. At
+    ///   100 % (or fully charged) it reads `chargedLabel`.
     /// - Plugged in but not charging: `chargedLabel` once full or at/above
     ///   80 %, otherwise `onHoldLabel`.
     /// - Discharging: `4:19` (h:mm from `timeToEmpty`), `—` only when that is
@@ -275,16 +273,16 @@ struct DevicePresentation {
         let reading = status.reading
 
         if reading.isCharging {
-            if reading.fullyCharged || reading.percent >= 80 { return chargedLabel }
+            if reading.fullyCharged || reading.percent >= 100 { return chargedLabel }
             // Counted from the absolute deadline against this entry's date, so
             // the pre-rendered entries of one timeline count down on their own
             // (NOTES.md §14). Once it is up, the target is met — never "0 min",
             // never a negative.
             if let remaining = status.timeTo80(now: now) {
                 guard remaining >= 30 else { return chargedLabel }
-                return "80 % \u{00B7} \(minutesText(remaining))"
+                return "\(status.chargeTarget) % \u{00B7} \(minutesText(remaining))"
             }
-            return "80 % \u{00B7} \(emDash)"
+            return "\(status.chargeTarget) % \u{00B7} \(emDash)"
         }
 
         if reading.externalConnected {

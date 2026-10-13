@@ -175,7 +175,8 @@ struct SummaryPresentation {
             // Concatenated rather than interpolated: a localisation key
             // carrying a bare `%` next to a placeholder is a `String(format:)`
             // accident waiting to happen (the same reason `80 % at` is split).
-            return "\(String(localized: "80 % ·")) \(StatusFormatter.shortDuration(remaining))"
+            let lead = status.chargeTarget < 100 ? String(localized: "80 % ·") : String(localized: "100 % ·")
+            return "\(lead) \(StatusFormatter.shortDuration(remaining))"
         }
         if reading.externalConnected {
             return (reading.fullyCharged || reading.percent >= 80)
@@ -198,7 +199,8 @@ struct SummaryPresentation {
             if let power = powerChip?.text { lead += " \(power)" }
             parts.append(lead)
             if let remaining = status.timeTo80(now: now), remaining >= 30 {
-                parts.append("\(String(localized: "80 % in")) \(StatusFormatter.shortDuration(remaining))")
+                let lead = status.chargeTarget < 100 ? String(localized: "80 % in") : String(localized: "100 % in")
+                parts.append("\(lead) \(StatusFormatter.shortDuration(remaining))")
             } else {
                 parts.append(String(localized: "charged"))
             }

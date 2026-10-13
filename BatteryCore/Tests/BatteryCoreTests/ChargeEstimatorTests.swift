@@ -49,11 +49,19 @@ struct ChargeEstimatorTests {
         #expect(estimator.smoothedCurrentMA.isEmpty)
     }
 
-    @Test("No ETA once the pack is at or past 80 %")
-    func noEtaAtOrAbove80() throws {
+    @Test("Past 80 % the ETA counts to 100 %, and stops there")
+    func etaTo100PastEighty() throws {
         var reading = try iPhoneCharging()
         reading.percent = 80
         reading.rawCurrentMAh = 3980
+        // (4966 - 3980) mAh / 2954 mA ≈ 20 min.
+        let eta = try #require(ChargeEstimator.estimate(for: reading, smoothedCurrentMA: 2954).etaTo80)
+        #expect(abs(eta - 1202) < 2)
+        #expect(ChargeEstimator.targetPercent(for: 79) == 80)
+        #expect(ChargeEstimator.targetPercent(for: 80) == 100)
+
+        reading.percent = 100
+        reading.rawCurrentMAh = 4966
         #expect(ChargeEstimator.estimate(for: reading, smoothedCurrentMA: 2954).etaTo80 == nil)
     }
 

@@ -145,6 +145,9 @@ public struct DeviceStatus: Sendable, Codable, Equatable {
         return max(0, etaTo80At.timeIntervalSince(now))
     }
 
+    /// The percent `etaTo80` counts towards for this reading: 80 or 100.
+    public var chargeTarget: Int { ChargeEstimator.targetPercent(for: reading.percent) }
+
     /// True once the 80 % deadline has come and gone.
     public func reached80(now: Date = Date()) -> Bool {
         guard let etaTo80At else { return false }

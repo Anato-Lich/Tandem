@@ -91,6 +91,42 @@
         }
       }
     },
+    "100 % in": {
+      "comment": "Summary window: lead-in past 80 %, followed by how long reaching 100 % will take, as in \"100 % in 40 min\".",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "100 % in"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "до 100 % за"
+          }
+        }
+      }
+    },
+    "100 % ·": {
+      "comment": "Summary window: the status chip's lead-in past 80 %, followed by the time left to 100 %, as in \"100 % · 40 min\".",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "100 % ·"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "100 % через"
+          }
+        }
+      }
+    },
     "80 % at": {
       "comment": "Summary window: followed by the clock time the session passed 80 %, as in \"80 % at 15:53\".",
       "extractionState": "manual",
@@ -1236,6 +1272,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "температура"
+          }
+        }
+      }
+    },
+    "to 100 %": {
+      "comment": "Popover row stat caption, under the time-to-100%% estimate while charging past 80 %.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "to 100 %"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "до 100 %"
           }
         }
       }

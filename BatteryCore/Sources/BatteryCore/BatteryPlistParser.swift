@@ -236,8 +236,17 @@ public enum BatteryPlistParser {
 
         let currentCapacity = try requiredInt("CurrentCapacity")
         let maxCapacity = try requiredInt("MaxCapacity")
-        let rawCurrent = try requiredInt("AppleRawCurrentCapacity")
-        let rawMax = try requiredInt("AppleRawMaxCapacity")
+        // iOS 27 dropped the AppleRaw* mAh keys; BatteryData still carries them.
+        let batteryData = dictionary["BatteryData"] as? [String: Any]
+        func batteryDataInt(_ key: String) -> Int? { normalizedInt(batteryData?[key]) }
+        guard let rawCurrent = optionalInt("AppleRawCurrentCapacity")
+            ?? batteryDataInt("TrueRemainingCapacity") ?? batteryDataInt("RemainingCapacity") else {
+            throw BatteryParseError.missingKey("AppleRawCurrentCapacity")
+        }
+        guard let rawMax = optionalInt("AppleRawMaxCapacity")
+            ?? batteryDataInt("FullChargeCapacity") ?? batteryDataInt("NominalChargeCapacity") else {
+            throw BatteryParseError.missingKey("AppleRawMaxCapacity")
+        }
         let voltageMV = try requiredInt("Voltage")
 
         // Apple Silicon and iOS report CurrentCapacity as a percentage against
@@ -260,7 +269,8 @@ public enum BatteryPlistParser {
         let externalConnected = try requiredBool("ExternalConnected")
         let fullyCharged = normalizedBool(dictionary["FullyCharged"]) ?? false
 
-        let designMAh = optionalInt("DesignCapacity") ?? optionalInt("NominalChargeCapacity") ?? rawMax
+        let designMAh = optionalInt("DesignCapacity") ?? optionalInt("NominalChargeCapacity")
+            ?? batteryDataInt("DesignCapacity") ?? rawMax
 
         let telemetry = dictionary["PowerTelemetryData"] as? [String: Any]
 
@@ -315,7 +325,7 @@ public enum BatteryPlistParser {
 
         let temperatureC = Double(optionalInt("Temperature") ?? 0) / 100.0
         let cycleCount = optionalInt("CycleCount")
-            ?? normalizedInt((dictionary["BatteryData"] as? [String: Any])?["CycleCount"])
+            ?? batteryDataInt("CycleCount")
             ?? 0
 
         // 65535 is the "unknown" sentinel. TimeRemaining is unreliable while an
