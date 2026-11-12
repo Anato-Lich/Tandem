@@ -143,13 +143,18 @@ public actor TandemMonitor {
     private var macUnreachableSince: Date?
     private var macFailedAttempts = 0
 
+    private let airpods: AirPodsSource?
+    private var airpodsStatus: AirPodsStatus?
+
     public init(
         mac: MacBatterySource = MacBatterySource(),
         phone: PhoneBatterySource = PhoneBatterySource(),
         store: SnapshotStore? = nil,
-        configuration: Configuration = Configuration()
+        configuration: Configuration = Configuration(),
+        airpods: AirPodsSource? = AirPodsSource()
     ) {
         self.mac = mac
+        self.airpods = airpods
         self.phone = phone
         self.store = store
         self.configuration = configuration
@@ -172,7 +177,8 @@ public actor TandemMonitor {
                      unreachableSince: phoneUnreachableSince, failedAttempts: phoneFailedAttempts)
             },
             phoneError: phoneError,
-            macError: macError
+            macError: macError,
+            airpods: airpodsStatus
         )
     }
 
@@ -196,7 +202,9 @@ public actor TandemMonitor {
     public func pollOnce() async -> TandemSnapshot {
         async let macDone: Void = pollMac()
         async let phoneDone: Void = pollPhone()
+        async let airpodsRead = airpods?.read()
         _ = await (macDone, phoneDone)
+        airpodsStatus = await airpodsRead
         let snapshot = self.snapshot()
         await persist(snapshot)
         return snapshot
@@ -522,6 +530,11 @@ public actor TandemMonitor {
                 state = .unreachable
             }
             await publish()
+            // After the Mac's own publish, so the scan never delays it.
+            if let airpods {
+                let read = await airpods.read()
+                if read != airpodsStatus { airpodsStatus = read; await publish() }
+            }
             let seconds = configuration.policy.macDelay(
                 level: effectiveActivity(),
                 state: state,

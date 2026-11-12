@@ -195,19 +195,23 @@ public struct TandemSnapshot: Sendable, Codable, Equatable {
     public var phoneError: MonitorError?
     /// The typed reason the last Mac poll failed, or `nil`.
     public var macError: MonitorError?
+    /// The user's AirPods, `nil` when none are paired.
+    public var airpods: AirPodsStatus?
 
     public init(
         generatedAt: Date = Date(),
         mac: DeviceStatus? = nil,
         phone: DeviceStatus? = nil,
         phoneError: MonitorError? = nil,
-        macError: MonitorError? = nil
+        macError: MonitorError? = nil,
+        airpods: AirPodsStatus? = nil
     ) {
         self.generatedAt = generatedAt
         self.mac = mac
         self.phone = phone
         self.phoneError = phoneError
         self.macError = macError
+        self.airpods = airpods
     }
 }
 

@@ -1,0 +1,32 @@
+{
+ "SPBluetoothDataType": [
+  {
+   "device_connected": [
+    {
+     "Magic Mouse": {
+      "device_minorType": "Mouse",
+      "device_batteryLevelMain": "40 %"
+     }
+    }
+   ],
+   "device_not_connected": [
+    {
+     "AirPods Pro": {
+      "device_address": "00:00:00:00:00:00",
+      "device_batteryLevelCase": "75 %",
+      "device_batteryLevelLeft": "100 %",
+      "device_batteryLevelRight": "100 %",
+      "device_caseVersion": "9B47",
+      "device_firmwareVersion": "9B47",
+      "device_minorType": "Headphones",
+      "device_productID": "0x2027",
+      "device_serialNumber": "0000000000",
+      "device_serialNumberLeft": "000000000000000000",
+      "device_serialNumberRight": "000000000000000000",
+      "device_vendorID": "0x004C"
+     }
+    }
+   ]
+  }
+ ]
+}

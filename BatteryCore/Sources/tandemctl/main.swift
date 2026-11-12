@@ -171,6 +171,14 @@ func emit(_ snapshot: TandemSnapshot, json: Bool, store: SnapshotStore) async {
         print(StatusFormatter.line(for: status, now: snapshot.generatedAt))
         printedAnything = true
     }
+    if let pods = snapshot.airpods {
+        func part(_ label: String, _ level: Int?, _ charging: Bool) -> String {
+            "\(label) \(level.map { "\($0) %" } ?? "—")\(charging ? "+" : "")"
+        }
+        let heard = pods.lastHeard.map { "heard \(Int(snapshot.generatedAt.timeIntervalSince($0))) s ago" } ?? "not heard"
+        print("\(pods.name)  \(part("L", pods.left, pods.leftCharging))  \(part("R", pods.right, pods.rightCharging))  \(part("case", pods.caseLevel, pods.caseCharging))  \(heard)")
+        printedAnything = true
+    }
     if !printedAnything { print("no devices") }
 }
 
