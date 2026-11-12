@@ -7,6 +7,6 @@ Design canvas: https://claude.ai/artifact/6gg4kMqmxJuWmYRTCwuREe (approved 2026-
 - [x] 3. Widget, medium: slots picked in Edit Widget (Mac / iPhone / AirPods), default Mac + iPhone; AirPods tile = split outer ring (L/R) + inner ring (case), number line in place of the day strip.
 - [x] 4. Widget, small "Accessories": AirPods dual ring (+ Watch later).
 - [x] 5. Widget, large: AirPods strip with three bars under the tiles.
-- [ ] 6. Build, install, check on the real AirPods; release notes.
+- [x] 6. Build, install, check on the real AirPods; release notes.
 
 Out of scope now: Apple Watch (no data source found yet), AirPods history/chart.

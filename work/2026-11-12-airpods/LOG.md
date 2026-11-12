@@ -9,8 +9,9 @@
 - Step 6: 1.4.0 (build 15) installed in /Applications; snapshot carries live AirPods (lastHeard from a BLE match inside the app); the placed medium widget migrated to the intent and reloads. Build products removed after install (stale appex lesson).
 - Not checked: Edit Widget UI, Russian locale on screen, the Bluetooth permission prompt (none appeared in the logs), a real lid-open / in-ear session.
 
+- Released: strict DMG rebuilt and reinstalled, main pushed (39ff63c), tag v1.4.0, GitHub release https://github.com/Anato-Lich/Tandem/releases/tag/v1.4.0 (includes the unreleased 1.3.7 fixes).
+
 ## Открыто
 - Apple Watch: no data source yet; the Accessories widget keeps its right column for it.
-- 1.4.0 is installed locally, not tagged or released.
 - L/R byte order in the short packet: confirm when the buds differ.
 - Does the short form appear while the AirPods are in use (lid open / in ears)?
