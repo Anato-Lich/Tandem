@@ -10,7 +10,7 @@
 //   D=/tmp/tandem-render && mkdir -p $D
 //   swiftc -O -emit-library -emit-module -module-name BatteryCore \
 //       -o $D/libBatteryCore.dylib -emit-module-path $D/BatteryCore.swiftmodule \
-//       BatteryCore/Sources/BatteryCore/{Models,TandemSnapshot,ChargeEstimator,Formatting}.swift \
+//       BatteryCore/Sources/BatteryCore/{Models,TandemSnapshot,ChargeEstimator,Formatting,AirPods}.swift \
 //       BatteryCore/Sources/BatteryCore/History/{HistoryModels,ChargeSessionBuilder}.swift \
 //       TandemApp/Sources/TandemWidget/MonitorErrorShim.swift
 //   swiftc -O -o $D/render-popover tools/render-popover.swift \
@@ -83,6 +83,8 @@ let phoneStatus = DeviceStatus(
     lastSeen: now
 )
 
+let airpods = AirPodsStatus(name: "AirPods Pro", left: 82, right: 79, caseLevel: 64, lastHeard: now)
+
 // MARK: - The popover plate
 
 /// `PopoverContentView`'s layout — two rows in a 14 pt inset, a divider and the
@@ -95,19 +97,17 @@ struct PopoverPlate: View {
             VStack(alignment: .leading, spacing: 14) {
                 DeviceRowView(kind: .mac, status: macStatus, error: nil, now: now)
                 DeviceRowView(kind: .iphone, status: phoneStatus, error: nil, now: now)
+                AirPodsRowView(status: airpods, now: now)
             }
             .padding(14)
-
-            Divider()
-
-            HStack {
-                Spacer()
+            // The overflow control sits on the last row's line, no footer of its own.
+            .overlay(alignment: .bottomTrailing) {
                 Image(systemName: "ellipsis.circle")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
+                    .padding(.trailing, 10)
+                    .padding(.bottom, 8)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
         }
         .frame(width: 300)
     }
