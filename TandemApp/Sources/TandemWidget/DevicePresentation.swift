@@ -101,9 +101,11 @@ struct DevicePresentation {
     /// 20 %. Two bands, not three — orange is reserved for charging (the bolt
     /// badge, the amber watts, the amber bars), and a ring that went orange at
     /// 49 % made every half-empty battery look like it was plugged in.
-    var levelColor: Color {
+    var levelColor: Color { Self.levelColor(percent) }
+
+    static func levelColor(_ percent: Int?) -> Color {
         guard let percent else { return .secondary }
-        return percent < Self.lowLevel ? .red : .green
+        return percent < lowLevel ? .red : .green
     }
 
     /// Below this the level reads as red, everywhere in the app.

@@ -227,6 +227,150 @@
           }
         }
       }
+    },
+    "in case": {
+      "extractionState": "manual",
+      "comment": "Widget: the AirPods are in their charging case.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "in case"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "в кейсе"
+          }
+        }
+      }
+    },
+    "case": {
+      "extractionState": "manual",
+      "comment": "Widget: the AirPods charging case, as in \"75 case\".",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "case"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "кейс"
+          }
+        }
+      }
+    },
+    "Tandem Accessories": {
+      "extractionState": "manual",
+      "comment": "Accessories widget name in the gallery.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tandem Accessories"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аксессуары Tandem"
+          }
+        }
+      }
+    },
+    "AirPods: both buds and the case.": {
+      "extractionState": "manual",
+      "comment": "Accessories widget description in the gallery.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AirPods: both buds and the case."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AirPods: оба наушника и кейс."
+          }
+        }
+      }
+    },
+    "Devices": {
+      "extractionState": "manual",
+      "comment": "Edit Widget: title of the tile choice.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Devices"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Устройства"
+          }
+        }
+      }
+    },
+    "Device": {
+      "extractionState": "manual",
+      "comment": "Edit Widget: what a tile shows.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Device"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Устройство"
+          }
+        }
+      }
+    },
+    "Left": {
+      "extractionState": "manual",
+      "comment": "Edit Widget: the left tile.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Left"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Слева"
+          }
+        }
+      }
+    },
+    "Right": {
+      "extractionState": "manual",
+      "comment": "Edit Widget: the right tile.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Right"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Справа"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

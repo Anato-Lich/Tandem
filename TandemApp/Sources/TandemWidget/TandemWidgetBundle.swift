@@ -15,6 +15,9 @@ struct TandemEntry: TimelineEntry {
     /// and fifteen copies of a 96-point series and a week of daily stats is a
     /// lot of archive to move a countdown. Twenty-four `TileBar`s is not.
     var bars = DayBars()
+    /// The medium/large tiles, from `TilesIntent`.
+    var left: SlotDevice = .mac
+    var right: SlotDevice = .iphone
 
     var mac: DevicePresentation {
         DevicePresentation(kind: .mac, status: snapshot?.mac, now: date)
@@ -23,6 +26,13 @@ struct TandemEntry: TimelineEntry {
     var phone: DevicePresentation {
         DevicePresentation(kind: .iphone, status: snapshot?.phone, now: date)
     }
+
+    func slots(_ intent: TilesIntent) -> TandemEntry {
+        var entry = self
+        entry.left = intent.left
+        entry.right = intent.right
+        return entry
+    }
 }
 
 /// One entry a minute for the next quarter of an hour, then a refresh — see
@@ -30,7 +40,7 @@ struct TandemEntry: TimelineEntry {
 /// changes something (throttled to once per 30 s), so the ambient policy is the
 /// backstop for when the app is not running, and the per-minute entries are
 /// what keep the countdown moving without polling anything at all.
-struct TandemProvider: TimelineProvider {
+struct TandemProvider: AppIntentTimelineProvider {
 
     static let refreshInterval: TimeInterval = 15 * 60
 
@@ -48,14 +58,14 @@ struct TandemProvider: TimelineProvider {
         )
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (TandemEntry) -> Void) {
+    func snapshot(for configuration: TilesIntent, in context: Context) async -> TandemEntry {
         // `isPreview` is the gallery: always the 71 % / 64 % sample, never a
         // half-populated real reading.
         let now = Date()
         let snapshot = context.isPreview ? SampleSnapshot.make(now: now) : (SnapshotLoader.load() ?? SampleSnapshot.make(now: now))
         if !context.isPreview { SnapshotLoader.markVisible(family: Self.familyName(context.family), now: now) }
         let history = Self.history(family: context.family, isPreview: context.isPreview, now: now)
-        completion(Self.entry(date: now, snapshot: snapshot, history: history, family: context.family))
+        return Self.entry(date: now, snapshot: snapshot, history: history, family: context.family).slots(configuration)
     }
 
     /// Two things happen here, and the second is the interesting one.
@@ -73,7 +83,7 @@ struct TandemProvider: TimelineProvider {
     ///    `lastSeen`), so pre-rendering the next fifteen minutes makes the
     ///    widget tick without a single extra poll of the phone. The policy is
     ///    still `.after(15 min)`, which is what keeps the marker fresh.
-    func getTimeline(in context: Context, completion: @escaping (Timeline<TandemEntry>) -> Void) {
+    func timeline(for configuration: TilesIntent, in context: Context) async -> Timeline<TandemEntry> {
         let now = Date()
         SnapshotLoader.markVisible(family: Self.familyName(context.family), now: now)
 
@@ -87,8 +97,7 @@ struct TandemProvider: TimelineProvider {
         // One entry, refreshed on the same quarter-hour policy, is the trade.
         if context.family == .systemLarge {
             let entry = Self.entry(date: now, snapshot: snapshot, history: HistoryLoader.load(), family: context.family)
-            completion(Timeline(entries: [entry], policy: .after(deadline)))
-            return
+            return Timeline(entries: [entry.slots(configuration)], policy: .after(deadline))
         }
 
         // Read and folded once, then shared: the strip is a picture of the last
@@ -103,9 +112,9 @@ struct TandemProvider: TimelineProvider {
                 date: now.addingTimeInterval(Double(step) * Self.entryInterval),
                 snapshot: snapshot,
                 bars: bars
-            )
+            ).slots(configuration)
         }
-        completion(Timeline(entries: entries, policy: .after(deadline)))
+        return Timeline(entries: entries, policy: .after(deadline))
     }
 
     /// One entry, with each family given exactly the history it draws: the
@@ -162,7 +171,8 @@ struct TandemWidgetEntryView: View {
                 // Same reasoning as the medium tiles below: the large layout
                 // measures its 14 pt inset from the widget edge, and its two
                 // tiles are literally the medium ones.
-                LargeWidgetView(mac: entry.mac, phone: entry.phone, history: entry.history, now: entry.date)
+                LargeWidgetView(snapshot: entry.snapshot, history: entry.history, now: entry.date,
+                                left: entry.left, right: entry.right)
                     .padding(EdgeInsets(top: -contentMargins.top,
                                         leading: -contentMargins.leading,
                                         bottom: -contentMargins.bottom,
@@ -171,7 +181,8 @@ struct TandemWidgetEntryView: View {
                 // The medium tiles want a 14 pt inset measured from the widget
                 // edge, not from inside WidgetKit's margins, so the margins are
                 // cancelled here and re-applied as `MediumWidgetView.inset`.
-                MediumWidgetView(mac: entry.mac, phone: entry.phone, bars: entry.bars)
+                MediumWidgetView(left: TileSlot(entry.left, snapshot: entry.snapshot, now: entry.date, bars: entry.bars),
+                                 right: TileSlot(entry.right, snapshot: entry.snapshot, now: entry.date, bars: entry.bars))
                     .padding(EdgeInsets(top: -contentMargins.top,
                                         leading: -contentMargins.leading,
                                         bottom: -contentMargins.bottom,
@@ -232,7 +243,9 @@ struct TandemWidget: Widget {
     let kind = "dev.tandem.widget.battery"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: TandemProvider()) { entry in
+        // Same `kind` as when this was a StaticConfiguration, so placed widgets
+        // carry over and get the intent's defaults (Mac + iPhone).
+        AppIntentConfiguration(kind: kind, intent: TilesIntent.self, provider: TandemProvider()) { entry in
             TandemWidgetEntryView(entry: entry)
         }
         .configurationDisplayName(Text("Tandem Battery", comment: "Widget name in the gallery."))
@@ -241,9 +254,44 @@ struct TandemWidget: Widget {
     }
 }
 
+/// The AirPods alone, refreshed on the main widget's quarter-hour policy and
+/// on every `reloadAllTimelines()` the app pushes. No visibility breadcrumb:
+/// that raises the *phone's* polling, and this widget shows no phone.
+struct AccessoriesProvider: TimelineProvider {
+    func placeholder(in context: Context) -> TandemEntry {
+        TandemEntry(date: Date(), snapshot: SampleSnapshot.make())
+    }
+
+    func getSnapshot(in context: Context, completion: @escaping (TandemEntry) -> Void) {
+        let snapshot = context.isPreview ? SampleSnapshot.make() : (SnapshotLoader.load() ?? SampleSnapshot.make())
+        completion(TandemEntry(date: Date(), snapshot: snapshot))
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<TandemEntry>) -> Void) {
+        let now = Date()
+        completion(Timeline(entries: [TandemEntry(date: now, snapshot: SnapshotLoader.load())],
+                            policy: .after(now.addingTimeInterval(TandemProvider.refreshInterval))))
+    }
+}
+
+struct AccessoriesWidget: Widget {
+    let kind = "dev.tandem.widget.accessories"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: AccessoriesProvider()) { entry in
+            AccessoriesWidgetView(status: entry.snapshot?.airpods)
+                .containerBackground(.regularMaterial, for: .widget)
+        }
+        .configurationDisplayName(Text("Tandem Accessories", comment: "Accessories widget name in the gallery."))
+        .description(Text("AirPods: both buds and the case.", comment: "Accessories widget description in the gallery."))
+        .supportedFamilies([.systemSmall])
+    }
+}
+
 @main
 struct TandemWidgetBundle: WidgetBundle {
     var body: some Widget {
         TandemWidget()
+        AccessoriesWidget()
     }
 }

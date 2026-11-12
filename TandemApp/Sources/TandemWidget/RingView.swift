@@ -15,10 +15,12 @@ struct RingView: View {
         percent.map { min(1, max(0, Double($0) / 100)) }
     }
 
+    static let track = Color.primary.opacity(0.16)
+
     var body: some View {
         ZStack {
             Circle()
-                .stroke(Color.primary.opacity(0.16), lineWidth: lineWidth)
+                .stroke(Self.track, lineWidth: lineWidth)
             if let fraction {
                 Circle()
                     // A hair of trim even at 0 %, so the rounded cap still shows
@@ -29,6 +31,55 @@ struct RingView: View {
             }
         }
         .padding(lineWidth / 2)
+    }
+}
+
+/// The AirPods ring: the outer ring split into two halves with a gap at top
+/// and bottom — right bud clockwise from the top on the right, left bud
+/// mirrored on the left — and a thinner full ring inside for the case.
+/// Butt caps on the halves so the gaps stay crisp. Geometry is the approved
+/// mock-up's (airpods-canvas `MediumThree` / `SmallAccessories`).
+struct DualRingView: View {
+    let status: AirPodsStatus?
+    var size: CGFloat = 52
+    var outerRadius: CGFloat = 22
+    var outerWidth: CGFloat = 5
+    var innerRadius: CGFloat = 15
+    var innerWidth: CGFloat = 4
+    var symbolSize: CGFloat = 16
+
+    /// 3 pt of arc either side of twelve and of six o'clock.
+    private var gap: CGFloat { 3 / (2 * .pi * outerRadius) }
+
+    var body: some View {
+        ZStack {
+            half(status?.right, mirrored: false)
+            half(status?.left, mirrored: true)
+            RingView(percent: status?.caseLevel,
+                     color: DevicePresentation.levelColor(status?.caseLevel),
+                     lineWidth: innerWidth)
+                .frame(width: 2 * innerRadius + innerWidth, height: 2 * innerRadius + innerWidth)
+            Image(systemName: "airpods")
+                .font(.system(size: symbolSize))
+        }
+        .frame(width: size, height: size)
+    }
+
+    private func half(_ percent: Int?, mirrored: Bool) -> some View {
+        let span = 0.5 - 2 * gap
+        return ZStack {
+            Circle()
+                .trim(from: gap, to: gap + span)
+                .stroke(RingView.track, lineWidth: outerWidth)
+            if let percent {
+                Circle()
+                    .trim(from: gap, to: gap + span * max(0.004, min(1, Double(percent) / 100)))
+                    .stroke(DevicePresentation.levelColor(percent), lineWidth: outerWidth)
+            }
+        }
+        .rotationEffect(.degrees(-90))
+        .scaleEffect(x: mirrored ? -1 : 1)
+        .frame(width: 2 * outerRadius, height: 2 * outerRadius)
     }
 }
 

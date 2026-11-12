@@ -42,8 +42,18 @@ enum SampleSnapshot {
                 ),
                 timeToEmpty: 13 * 3600 + 21 * 60,
                 lastSeen: now
-            )
+            ),
+            airpods: airpods(now: now)
         )
+    }
+
+    /// The AirPods as the design canvas shows them: both buds full in the
+    /// case, the case at 75 %.
+    static func airpods(now: Date) -> AirPodsStatus {
+        var status = AirPodsStatus(name: "AirPods Pro", left: 100, right: 100, caseLevel: 75, lastHeard: now)
+        status.leftCharging = true
+        status.rightCharging = true
+        return status
     }
 
     private static func reading(

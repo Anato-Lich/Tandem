@@ -69,14 +69,19 @@ extension Color {
 /// The tiles' own day strips read the same file and are folded from the same
 /// bins, so the strip and the plot below it are the same day at two
 /// resolutions: twelve two-hour columns against ninety-six readings.
+///
+/// When the snapshot carries AirPods, a strip of their three levels sits
+/// between the tiles and the chart, and the chart card gives up the height.
 struct LargeWidgetView: View {
-    let mac: DevicePresentation
-    let phone: DevicePresentation
+    let snapshot: TandemSnapshot?
     /// `nil`, or older than `HistorySummary.freshnessWindow`, and the card draws
     /// its axes with nothing in them and says so — and the tiles above draw
     /// their bare tracks, for the same reason and off the same test.
     let history: HistorySummary?
     var now: Date = Date()
+    /// The two tiles, as picked for the medium family (same `TilesIntent`).
+    var left: SlotDevice = .mac
+    var right: SlotDevice = .iphone
 
     /// Folded once here rather than handed in, because this family already
     /// holds the whole summary: its chart needs the readings, and the tiles
@@ -86,13 +91,18 @@ struct LargeWidgetView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                DeviceTileLink(device: mac, bars: bars.mac)
+                SlotTile(slot: TileSlot(left, snapshot: snapshot, now: now, bars: bars))
                 TileDivider()
-                DeviceTileLink(device: phone, bars: bars.phone)
+                SlotTile(slot: TileSlot(right, snapshot: snapshot, now: now, bars: bars))
             }
             // The chart takes what is left: the tiles grew by a day strip, so
             // the plot below them is that much shorter.
             .frame(height: DeviceTile.naturalHeight)
+
+            // A slot already showing the AirPods makes the strip a repeat.
+            if let airpods = snapshot?.airpods, left != .airpods, right != .airpods {
+                AirPodsStrip(status: airpods)
+            }
 
             ChartCard(
                 mac: series(.mac),

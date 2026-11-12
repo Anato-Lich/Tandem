@@ -33,18 +33,18 @@ struct DeviceTile: View {
     /// bare track — see `DayBarsView`.
     var bars: [TileBar] = []
 
-    private static let ringSize: CGFloat = 52
+    static let ringSize: CGFloat = 52
     private static let ringStroke: CGFloat = 6
     private static let ringSymbol: CGFloat = 22
     /// The mock-up's 13 pt, taken up on the user's instruction: this is the one
     /// line of tech on the tile and it was too quiet to read at arm's length.
-    private static let topSize: CGFloat = 15
-    private static let percentSize: CGFloat = 30
+    static let topSize: CGFloat = 15
+    static let percentSize: CGFloat = 30
     private static let statusSize: CGFloat = 12.5
     /// The least air either side of the bars. The tile is taller than its
     /// content in the medium family and shorter in nothing, so these are
     /// floors, not gaps.
-    private static let band: CGFloat = 6
+    static let band: CGFloat = 6
 
     /// The tallest this tile ever wants: ring, the day, the percent line and
     /// the two bands between them. The medium widget lets it fill instead; the
@@ -225,13 +225,24 @@ struct TileDivider: View {
 /// system Batteries widget — ring top-left, big percent bottom-left — with the
 /// one line of tech Batteries has no room for set beside the ring, and the
 /// device's last 24 h between them.
+///
+/// Which device each half shows is picked in Edit Widget (`TilesIntent`);
+/// Mac + iPhone is the default, so widgets placed before the choice existed
+/// look as they did.
 struct MediumWidgetView: View {
-    let mac: DevicePresentation
-    let phone: DevicePresentation
-    /// Both devices' days, folded to twelve columns each. Empty — no
-    /// `history-summary.json`, or one more than two hours old — and both tiles
-    /// draw the bare track.
-    var bars = DayBars()
+    let left: TileSlot
+    let right: TileSlot
+
+    /// Mac + iPhone. `bars` empty — no `history-summary.json`, or one more than
+    /// two hours old — and both tiles draw the bare track.
+    init(mac: DevicePresentation, phone: DevicePresentation, bars: DayBars = DayBars()) {
+        self.init(left: .device(mac, bars: bars.mac), right: .device(phone, bars: bars.phone))
+    }
+
+    init(left: TileSlot, right: TileSlot) {
+        self.left = left
+        self.right = right
+    }
 
     /// The tile inset. `TandemWidgetEntryView` cancels WidgetKit's own content
     /// margins for this family so this is the real distance to the widget edge.
@@ -239,9 +250,9 @@ struct MediumWidgetView: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            DeviceTileLink(device: mac, bars: bars.mac)
+            SlotTile(slot: left)
             TileDivider()
-            DeviceTileLink(device: phone, bars: bars.phone)
+            SlotTile(slot: right)
         }
         .padding(Self.inset)
     }

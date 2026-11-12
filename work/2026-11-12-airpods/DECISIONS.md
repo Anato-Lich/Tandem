@@ -5,3 +5,7 @@
 3. **Last heard = max(BLE match time, time the system_profiler values last changed).** Open-lid / in-ear packets are encrypted, so a change in the values is the other proof of life.
 4. **Order of L/R bytes in the short form is not relied on** (both were 100 % when captured); levels are matched as a multiset.
 5. **Scan window 20 s with early exit, run after the Mac's publish in the Mac loop.** Closed-lid adverts come every 2–20 s, a 4 s window missed them; the scan stops at the first matching packet, so it usually costs a few seconds per Mac poll.
+6. **Popover rows share one column grid (min 64 pt, spacing 10)** so the AirPods bars sit under the Mac/iPhone columns; a wide value pushes the next column rather than truncating.
+7. **Medium/large tiles are picked in Edit Widget** (AppIntentConfiguration, slots default Mac + iPhone, `kind` unchanged so placed widgets keep their look). The large widget's AirPods strip hides when a slot already shows the AirPods.
+8. **Orange number only while that part charges below 100 %**; a full set resting in the case is not all orange. "in case" = live and a bud charging (no separate in-case flag in the data).
+9. **`AirPods.swift` is compiled into the widget too** (the snapshot type references `AirPodsStatus`); the extension never calls the reader.

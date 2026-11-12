@@ -3,8 +3,8 @@
 //
 //   swiftc -O -o /tmp/render-widget \
 //       tools/render-widget.swift \
-//       TandemApp/Sources/TandemWidget/{DevicePresentation,RingView,DayBars,MediumWidgetView,SmallWidgetView,LargeWidgetView,SampleSnapshot,SampleHistory,MonitorErrorShim}.swift \
-//       BatteryCore/Sources/BatteryCore/{Models,TandemSnapshot,ChargeEstimator,Formatting}.swift \
+//       TandemApp/Sources/TandemWidget/{DevicePresentation,RingView,DayBars,MediumWidgetView,SmallWidgetView,LargeWidgetView,AirPodsViews,TilesIntent,SampleSnapshot,SampleHistory,MonitorErrorShim}.swift \
+//       BatteryCore/Sources/BatteryCore/{Models,TandemSnapshot,ChargeEstimator,Formatting,AirPods}.swift \
 //       BatteryCore/Sources/BatteryCore/History/HistoryModels.swift
 //   /tmp/render-widget docs/widget-small.png small
 //   /tmp/render-widget docs/widget-small-charging.png small-charging
@@ -12,6 +12,10 @@
 //   /tmp/render-widget docs/widget-medium-charging.png medium-charging
 //   /tmp/render-widget docs/widget-medium-states.png medium-states
 //   /tmp/render-widget docs/widget-large.png large
+//   /tmp/render-widget out.png medium-airpods      Mac + AirPods in the case
+//   /tmp/render-widget out.png medium-lastknown    iPhone + AirPods last heard 2 h ago
+//   /tmp/render-widget out.png medium-nodata       Mac + AirPods never seen
+//   /tmp/render-widget out.png accessories         the small Accessories widget
 //
 // Caveat: this draws the widget *content* only, on a plain sheet. The
 // translucent material a placed widget sits on is painted by the macOS widget
@@ -221,7 +225,7 @@ struct RenderWidget {
     static func main() {
         let args = CommandLine.arguments
         guard args.count >= 3 else {
-            FileHandle.standardError.write(Data("usage: render-widget <out.png> small|small-charging|medium|medium-charging|medium-states|large\n".utf8))
+            FileHandle.standardError.write(Data("usage: render-widget <out.png> small|small-charging|medium|medium-charging|medium-states|large|medium-airpods|medium-lastknown|medium-nodata|accessories\n".utf8))
             exit(2)
         }
         let out = args[1]
@@ -243,12 +247,28 @@ struct RenderWidget {
             // combinations can be read against `Combos.dc.html` side by side.
             render(StatesSheet(now: now).background(Color(white: 0.55)),
                    size: CGSize(width: 816, height: 452), scale: 2, to: out)
+        case "medium-airpods", "medium-lastknown", "medium-nodata":
+            var snapshot = snapshot
+            if variant == "medium-lastknown" {
+                snapshot.airpods = AirPodsStatus(name: "AirPods", left: 15, right: 22, caseLevel: nil,
+                                                 lastHeard: now.addingTimeInterval(-2 * 3600))
+            } else if variant == "medium-nodata" {
+                snapshot.airpods = nil
+            }
+            let bars = DayBars(history: SampleHistory.make(now: now), now: now)
+            let first: SlotDevice = variant == "medium-lastknown" ? .iphone : .mac
+            render(MediumWidgetView(left: TileSlot(first, snapshot: snapshot, now: now, bars: bars),
+                                    right: TileSlot(.airpods, snapshot: snapshot, now: now, bars: bars)),
+                   size: CGSize(width: 336, height: 161), scale: 3, to: out, dark: true)
+        case "accessories":
+            render(AccessoriesWidgetView(status: snapshot.airpods).padding(16),
+                   size: CGSize(width: 170, height: 170), scale: 3, to: out, dark: true)
         case "large":
             // The chart is the point of this family and it is drawn in the
             // colours a real widget gets on the desktop, so the large export is
             // the one rendered dark; 336x359 is the large rect with the same
             // 16 pt of framing the other exports use.
-            render(LargeWidgetView(mac: mac, phone: phone, history: SampleHistory.make(now: now), now: now),
+            render(LargeWidgetView(snapshot: snapshot, history: SampleHistory.make(now: now), now: now),
                    size: CGSize(width: 336, height: 359), scale: 2, to: out, dark: true)
         default:
             var bars = DayBars(history: SampleHistory.make(now: now), now: now)
