@@ -1485,6 +1485,60 @@
           }
         }
       }
+    },
+    "airpods.left": {
+      "comment": "Popover AirPods row: caption under the left bud's percent. Its own key because \"left\" is already the time-left caption.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "left"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "левый"
+          }
+        }
+      }
+    },
+    "airpods.right": {
+      "comment": "Popover AirPods row: caption under the right bud's percent.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "right"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "правый"
+          }
+        }
+      }
+    },
+    "airpods.case": {
+      "comment": "Popover AirPods row: caption under the charging case's percent.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "case"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "кейс"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

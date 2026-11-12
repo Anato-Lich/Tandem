@@ -23,7 +23,13 @@ struct DeviceRowView: View {
     /// Indent for content below the header row, so it lines up with the
     /// device name (icon width 16 + header spacing, rounded to the approved
     /// mock's 28 pt).
-    private static let contentIndent: CGFloat = 28
+    static let contentIndent: CGFloat = 28
+
+    /// The stat columns' grid (approved mock: 64 pt columns, 10 pt apart),
+    /// shared with `AirPodsRowView` so its three bars sit under these columns.
+    /// A minimum, not a width: a wide adapter value pushes on rather than clips.
+    static let columnWidth: CGFloat = 64
+    static let columnSpacing: CGFloat = 10
 
     // What used to be `phoneAttentionThreshold` (5 minutes of `lastSeen` age)
     // is gone. The phone is polled every 2–5 minutes at best and not at all
@@ -51,12 +57,14 @@ struct DeviceRowView: View {
         return VStack(alignment: .leading, spacing: 8) {
             VStack(alignment: .leading, spacing: 4) {
                 headerRow(status)
-                levelBar(percent: status.reading.percent)
+                Self.levelBar(percent: status.reading.percent)
             }
 
-            HStack(spacing: 18) {
+            HStack(spacing: Self.columnSpacing) {
                 StatColumnView(column: DeviceStatColumns.power(status, kind: kind))
+                    .frame(minWidth: Self.columnWidth, alignment: .leading)
                 StatColumnView(column: DeviceStatColumns.adapter(status))
+                    .frame(minWidth: Self.columnWidth, alignment: .leading)
                 StatColumnView(column: DeviceStatColumns.time(status, kind: kind, now: now))
             }
             .padding(.leading, Self.contentIndent)
@@ -125,9 +133,9 @@ struct DeviceRowView: View {
 
     /// 6 pt bar, coloured purely by charge level (red < 20 %, green
     /// otherwise). Charging state never changes this colour — that is the
-    /// bolt's job, and orange belongs to it alone.
-    private func levelBar(percent: Int) -> some View {
-        let fraction = CGFloat(min(100, max(0, percent))) / 100
+    /// bolt's job, and orange belongs to it alone. An unknown level is an empty track.
+    static func levelBar(percent: Int?) -> some View {
+        let fraction = CGFloat(min(100, max(0, percent ?? 0))) / 100
         return GeometryReader { geometry in
             ZStack(alignment: .leading) {
                 Capsule()
@@ -180,6 +188,79 @@ struct DeviceRowView: View {
         switch kind {
         case .mac: return String(localized: "Mac not reachable")
         case .iphone: return String(localized: "iPhone not reachable")
+        }
+    }
+}
+
+/// The AirPods row: no headline percent, but three bars — left, right, case —
+/// in the stat columns' grid, each over its value. Charging lights the bolt and
+/// the charging part's value; not heard within `AirPodsStatus.liveWindow`, the
+/// bolt gives way to a clock and the time they were last heard. Nothing dims
+/// for age, as in `DeviceRowView`.
+struct AirPodsRowView: View {
+    let status: AirPodsStatus
+    var now: Date = Date()
+
+    private var parts: [(level: Int?, charging: Bool, caption: String)] {
+        [
+            (status.left, status.leftCharging, String(localized: "airpods.left", defaultValue: "left")),
+            (status.right, status.rightCharging, String(localized: "airpods.right", defaultValue: "right")),
+            (status.caseLevel, status.caseCharging, String(localized: "airpods.case", defaultValue: "case")),
+        ]
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                header
+                HStack(spacing: DeviceRowView.columnSpacing) {
+                    ForEach(parts.indices, id: \.self) { index in
+                        DeviceRowView.levelBar(percent: parts[index].level)
+                            .frame(width: DeviceRowView.columnWidth)
+                    }
+                }
+                .padding(.leading, DeviceRowView.contentIndent)
+            }
+
+            HStack(spacing: DeviceRowView.columnSpacing) {
+                ForEach(parts.indices, id: \.self) { index in
+                    let part = parts[index]
+                    StatColumnView(column: part.level.map {
+                        StatColumn(value: "\($0) %", caption: part.caption, color: part.charging ? .orange : .primary)
+                    } ?? .unknown(part.caption))
+                    .frame(width: DeviceRowView.columnWidth, alignment: .leading)
+                }
+            }
+            .padding(.leading, DeviceRowView.contentIndent)
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "airpods.pro")
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            Text(status.name)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            if !status.isLive(now: now) {
+                HStack(spacing: 3) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 10))
+                    if let heard = status.lastHeard {
+                        Text(heard.formatted(date: .omitted, time: .shortened))
+                            .font(.system(size: 11))
+                            .monospacedDigit()
+                    }
+                }
+                .foregroundStyle(.secondary)
+                .help(status.lastHeard?.formatted(date: .abbreviated, time: .shortened) ?? "")
+            } else if status.isCharging {
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+            }
+            Spacer(minLength: 8)
         }
     }
 }

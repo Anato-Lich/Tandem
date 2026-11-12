@@ -4,7 +4,8 @@ import ServiceManagement
 import os
 import BatteryCore
 
-/// The `.window`-style MenuBarExtra popover: Mac row, iPhone row, footer.
+/// The `.window`-style MenuBarExtra popover: Mac row, iPhone row, the AirPods
+/// row when there are AirPods, footer.
 struct PopoverContentView: View {
     @Environment(TandemModel.self) private var model
 
@@ -35,6 +36,9 @@ struct PopoverContentView: View {
                             error: model.snapshot.phoneError,
                             now: context.date
                         )
+                    }
+                    if let airpods = model.snapshot.airpods {
+                        AirPodsRowView(status: airpods, now: context.date)
                     }
                 }
             }

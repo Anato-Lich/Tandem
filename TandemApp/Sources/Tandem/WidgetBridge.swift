@@ -134,6 +134,7 @@ final class WidgetBridge {
     static func appearedOrVanished(from old: TandemSnapshot?, to new: TandemSnapshot) -> Bool {
         guard let old else { return true }
         return (old.mac == nil) != (new.mac == nil) || (old.phone == nil) != (new.phone == nil)
+            || (old.airpods == nil) != (new.airpods == nil)
     }
 
     /// Would the widget draw differently? Percent, charging/plugged state, a
@@ -142,7 +143,18 @@ final class WidgetBridge {
     /// invisible at widget size and is not worth a cross-process reload.
     static func materiallyChanged(from old: TandemSnapshot?, to new: TandemSnapshot) -> Bool {
         guard let old else { return true }
-        return changed(old.mac, new.mac) || changed(old.phone, new.phone)
+        return changed(old.mac, new.mac) || changed(old.phone, new.phone) || changed(old.airpods, new.airpods)
+    }
+
+    /// AirPods: any level, charging flag or name, appearing or vanishing, and
+    /// being heard again after going quiet. `lastHeard` moves on every scan, so
+    /// on its own it is not a change.
+    private static func changed(_ old: AirPodsStatus?, _ new: AirPodsStatus?) -> Bool {
+        if old?.isLive() != new?.isLive() { return true }
+        var old = old, new = new
+        old?.lastHeard = nil
+        new?.lastHeard = nil
+        return old != new
     }
 
     private static func changed(_ old: DeviceStatus?, _ new: DeviceStatus?) -> Bool {
