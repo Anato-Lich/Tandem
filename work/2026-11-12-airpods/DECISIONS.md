@@ -9,3 +9,4 @@
 7. **Medium/large tiles are picked in Edit Widget** (AppIntentConfiguration, slots default Mac + iPhone, `kind` unchanged so placed widgets keep their look). The large widget's AirPods strip hides when a slot already shows the AirPods.
 8. **Orange number only while that part charges below 100 %**; a full set resting in the case is not all orange. "in case" = live and a bud charging (no separate in-case flag in the data).
 9. **`AirPods.swift` is compiled into the widget too** (the snapshot type references `AirPodsStatus`); the extension never calls the reader.
+10. **AirPods poll in their own loop with a 10 s timeout on system_profiler** — a stuck AirPods read must never freeze the Mac or the iPhone (it froze the Mac for 14 h on 1.4.0).

@@ -11,6 +11,11 @@
 
 - Released: strict DMG rebuilt and reinstalled, main pushed (39ff63c), tag v1.4.0, GitHub release https://github.com/Anato-Lich/Tandem/releases/tag/v1.4.0 (includes the unreleased 1.3.7 fixes).
 
+
+## 2026-11-13
+- Bug: the Mac froze at 90 % / on adapter for ~14 h (real: 34 % on battery). `sample` showed the Mac loop parked in `AirPodsSource.runProfiler` → `Process.waitUntilExit` with no system_profiler process left — after the Mac slept. Fixed in b36f881: exit via `terminationHandler`, 10 s kill timeout, AirPods in their own loop (D10). 1.4.1 (build 16) installed; snapshot fresh again (Mac 33 %, on battery). Not pushed or released yet.
+- Not checked: the timeout path itself (no test — runProfiler hardcodes system_profiler); a real sleep/wake cycle on 1.4.1.
+
 ## Открыто
 - Apple Watch: no data source yet; the Accessories widget keeps its right column for it.
 - L/R byte order in the short packet: confirm when the buds differ.
