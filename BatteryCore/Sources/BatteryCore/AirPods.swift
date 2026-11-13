@@ -153,19 +153,34 @@ public final class AirPodsSource: NSObject, CBCentralManagerDelegate, @unchecked
 
     // MARK: - system_profiler
 
-    static func runProfiler() async -> Data? {
-        await withCheckedContinuation { continuation in
+    /// `waitUntilExit` hung for hours after a sleep with the process long gone
+    /// (2026-11-13), so the exit comes from `terminationHandler`, and a run
+    /// past `timeout` is killed.
+    static func runProfiler(timeout: TimeInterval = 10) async -> Data? {
+        final class Output: @unchecked Sendable { var data = Data() }
+        return await withCheckedContinuation { continuation in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
             process.arguments = ["SPBluetoothDataType", "-json"]
             let pipe = Pipe()
             process.standardOutput = pipe
             process.standardError = FileHandle.nullDevice
+            let output = Output()
+            let done = DispatchGroup()
+            done.enter()
+            done.enter()
+            process.terminationHandler = { _ in done.leave() }
             do { try process.run() } catch { continuation.resume(returning: nil); return }
+            // Read while it runs: a full pipe would otherwise stop it from exiting.
             DispatchQueue.global(qos: .utility).async {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                process.waitUntilExit()
-                continuation.resume(returning: process.terminationStatus == 0 ? data : nil)
+                output.data = pipe.fileHandleForReading.readDataToEndOfFile()
+                done.leave()
+            }
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout) {
+                if process.isRunning { process.terminate() }
+            }
+            done.notify(queue: .global(qos: .utility)) {
+                continuation.resume(returning: process.terminationStatus == 0 ? output.data : nil)
             }
         }
     }

@@ -256,6 +256,7 @@ public actor TandemMonitor {
                 }
             }
             group.addTask { await self.macLoop(wake: macWake) }
+            group.addTask { await self.airpodsLoop() }
             group.addTask { await self.phoneLoop(wake: phoneWake) }
 
             // The three event-forwarding tasks never finish on their own; the
@@ -530,11 +531,6 @@ public actor TandemMonitor {
                 state = .unreachable
             }
             await publish()
-            // After the Mac's own publish, so the scan never delays it.
-            if let airpods {
-                let read = await airpods.read()
-                if read != airpodsStatus { airpodsStatus = read; await publish() }
-            }
             let seconds = configuration.policy.macDelay(
                 level: effectiveActivity(),
                 state: state,
@@ -543,6 +539,21 @@ public actor TandemMonitor {
             // An event (IOKit power source, network path, `requestRefresh()`)
             // cut the sleep short: the world changed, so the ladder starts over.
             if await wake.sleep(seconds: seconds) { failures = 0 }
+        }
+    }
+
+    /// Its own loop so a stuck AirPods read can never freeze the Mac's (it did,
+    /// 2026-11-13). Paced like the Mac on battery; idle while hidden.
+    private func airpodsLoop() async {
+        guard let airpods else { return }
+        while !Task.isCancelled {
+            let level = effectiveActivity()
+            if level != .hidden {
+                let read = await airpods.read()
+                if read != airpodsStatus { airpodsStatus = read; await publish() }
+            }
+            let seconds = configuration.policy.macDelay(level: level, state: .discharging)
+            try? await Task.sleep(for: .seconds(seconds))
         }
     }
 
