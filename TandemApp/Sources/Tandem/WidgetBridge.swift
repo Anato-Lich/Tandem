@@ -169,6 +169,8 @@ final class WidgetBridge {
             if old.reading.fullyCharged != new.reading.fullyCharged { return true }
             if wattsChanged(old.chargingWatts, new.chargingWatts) { return true }
             if wattsChanged(old.reading.batteryPowerW, new.reading.batteryPowerW) { return true }
+            if wattsChanged(old.reading.systemPowerInW, new.reading.systemPowerInW) { return true }
+            if wattsChanged(old.reading.systemLoadW, new.reading.systemLoadW) { return true }
             if old.reading.adapterWatts != new.reading.adapterWatts { return true }
             return false
         }
